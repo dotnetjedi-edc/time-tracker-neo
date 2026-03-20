@@ -1,4 +1,4 @@
-import type { Tag, Task, TimeEntry, WeeklyTaskSummary } from "../types";
+import type { Tag, Task, TaskSession, WeeklyTaskSummary } from "../types";
 import { toDateKey, weekDays } from "./time";
 
 export interface WeeklySummary {
@@ -10,7 +10,7 @@ export interface WeeklySummary {
 
 export const summarizeWeek = (
   tasks: Task[],
-  entries: TimeEntry[],
+  sessions: TaskSession[],
   anchorDate: string,
   selectedTagIds: number[],
   tags: Tag[],
@@ -32,13 +32,21 @@ export const summarizeWeek = (
   const totalsByDay = Object.fromEntries(days.map((day) => [day, 0]));
   const taskSummaries = new Map<number, WeeklyTaskSummary>();
 
-  for (const entry of entries) {
-    if (!daySet.has(entry.date)) {
+  for (const session of sessions) {
+    if (!daySet.has(session.date)) {
       continue;
     }
 
-    const task = taskMap.get(entry.taskId);
+    const task = taskMap.get(session.taskId);
     if (!task) {
+      continue;
+    }
+
+    const durationSeconds = session.segments.reduce(
+      (sum, segment) => sum + segment.durationSeconds,
+      0,
+    );
+    if (durationSeconds === 0) {
       continue;
     }
 
@@ -50,10 +58,10 @@ export const summarizeWeek = (
       totalSeconds: 0,
     };
 
-    summary.byDay[entry.date] += entry.durationSeconds;
-    summary.totalSeconds += entry.durationSeconds;
+    summary.byDay[session.date] += durationSeconds;
+    summary.totalSeconds += durationSeconds;
     taskSummaries.set(task.id, summary);
-    totalsByDay[entry.date] += entry.durationSeconds;
+    totalsByDay[session.date] += durationSeconds;
   }
 
   const totalSeconds = Object.values(totalsByDay).reduce(

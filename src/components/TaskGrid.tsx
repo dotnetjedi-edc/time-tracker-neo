@@ -23,6 +23,8 @@ interface TaskGridProps {
   liveTotals: Record<number, number>;
   onToggleTimer: (taskId: number) => void;
   onEditTask: (task: Task) => void;
+  onOpenManualTime: (task: Task) => void;
+  onOpenHistory: (task: Task) => void;
   onAddTask: () => void;
   onReorder: (activeTaskId: number, overTaskId: number) => void;
 }
@@ -34,6 +36,8 @@ export function TaskGrid({
   liveTotals,
   onToggleTimer,
   onEditTask,
+  onOpenManualTime,
+  onOpenHistory,
   onAddTask,
   onReorder,
 }: TaskGridProps) {
@@ -99,6 +103,8 @@ export function TaskGrid({
               liveSeconds={liveTotals[task.id] ?? task.totalTimeSeconds}
               onToggleTimer={onToggleTimer}
               onEdit={onEditTask}
+              onOpenManualTime={onOpenManualTime}
+              onOpenHistory={onOpenHistory}
             />
           ))}
 

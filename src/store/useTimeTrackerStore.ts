@@ -2,22 +2,27 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type {
   ActiveTimer,
+  SessionAuditEvent,
+  SessionAuditEventType,
+  SessionDraft,
+  SessionSegment,
   Tag,
   Task,
+  TaskSession,
   TaskDraft,
-  TimeEntry,
   ViewMode,
 } from "../types";
-import { differenceInSeconds, shiftWeek, todayKey } from "../lib/time";
+import { differenceInSeconds, shiftWeek, toDateKey, todayKey } from "../lib/time";
 
 interface TimeTrackerState {
   tasks: Task[];
   tags: Tag[];
-  timeEntries: TimeEntry[];
+  sessions: TaskSession[];
   activeTimer: ActiveTimer | null;
   selectedTagIds: number[];
   currentView: ViewMode;
   reportAnchor: string;
+  resumeCandidateSessionId: number | null;
   addTask: (draft: TaskDraft) => void;
   updateTask: (taskId: number, draft: TaskDraft) => void;
   deleteTask: (taskId: number) => void;
@@ -25,6 +30,9 @@ interface TimeTrackerState {
   startTimer: (taskId: number, startedAt?: string) => void;
   stopTimer: (stoppedAt?: string) => void;
   toggleTimer: (taskId: number) => void;
+  addManualSession: (taskId: number, draft: SessionDraft) => void;
+  updateSession: (sessionId: number, draft: SessionDraft) => void;
+  deleteSession: (sessionId: number) => void;
   addTag: (name: string, color: string) => void;
   updateTag: (tagId: number, patch: Pick<Tag, "name" | "color">) => void;
   deleteTag: (tagId: number) => void;
@@ -39,11 +47,38 @@ interface TimeTrackerState {
 interface TimeTrackerDataState {
   tasks: Task[];
   tags: Tag[];
-  timeEntries: TimeEntry[];
+  sessions: TaskSession[];
   activeTimer: ActiveTimer | null;
   selectedTagIds: number[];
   currentView: ViewMode;
   reportAnchor: string;
+  resumeCandidateSessionId: number | null;
+}
+
+interface LegacyTimeEntry {
+  id: number;
+  taskId: number;
+  startTime: string;
+  endTime: string;
+  durationSeconds: number;
+  date: string;
+  createdAt: string;
+}
+
+interface LegacyActiveTimer {
+  taskId: number;
+  startTime: string;
+  updatedAt: string;
+}
+
+interface LegacyPersistedState {
+  tasks?: Task[];
+  tags?: Tag[];
+  timeEntries?: LegacyTimeEntry[];
+  activeTimer?: LegacyActiveTimer | null;
+  selectedTagIds?: number[];
+  currentView?: ViewMode;
+  reportAnchor?: string;
 }
 
 const createTaskId = (tasks: Task[]): number =>
@@ -52,8 +87,28 @@ const createTaskId = (tasks: Task[]): number =>
 const createTagId = (tags: Tag[]): number =>
   tags.reduce((maxId, tag) => Math.max(maxId, tag.id), 0) + 1;
 
-const createTimeEntryId = (entries: TimeEntry[]): number =>
-  entries.reduce((maxId, entry) => Math.max(maxId, entry.id), 0) + 1;
+const createSessionId = (sessions: TaskSession[]): number =>
+  sessions.reduce((maxId, session) => Math.max(maxId, session.id), 0) + 1;
+
+const createSegmentId = (sessions: TaskSession[]): number =>
+  sessions.reduce(
+    (maxId, session) =>
+      Math.max(
+        maxId,
+        ...session.segments.map((segment) => segment.id),
+      ),
+    0,
+  ) + 1;
+
+const createAuditEventId = (sessions: TaskSession[]): number =>
+  sessions.reduce(
+    (maxId, session) =>
+      Math.max(
+        maxId,
+        ...session.auditEvents.map((event) => event.id),
+      ),
+    0,
+  ) + 1;
 
 const normalizeTaskDraft = (draft: TaskDraft): TaskDraft => ({
   ...draft,
@@ -62,16 +117,196 @@ const normalizeTaskDraft = (draft: TaskDraft): TaskDraft => ({
   tagIds: [...new Set(draft.tagIds)],
 });
 
+const normalizeSessionDraft = (draft: SessionDraft): SessionDraft => ({
+  startTime: draft.startTime,
+  endTime: draft.endTime,
+});
+
+const createAuditEvent = (
+  id: number,
+  type: SessionAuditEventType,
+  at: string,
+  description: string,
+): SessionAuditEvent => ({
+  id,
+  type,
+  at,
+  description,
+});
+
+const calculateSessionDuration = (session: TaskSession): number =>
+  session.segments.reduce((sum, segment) => sum + segment.durationSeconds, 0);
+
+const syncTaskTotals = (tasks: Task[], sessions: TaskSession[]): Task[] => {
+  const totals = new Map<number, number>();
+  for (const session of sessions) {
+    totals.set(
+      session.taskId,
+      (totals.get(session.taskId) ?? 0) + calculateSessionDuration(session),
+    );
+  }
+
+  return tasks.map((task) => ({
+    ...task,
+    totalTimeSeconds: totals.get(task.id) ?? 0,
+  }));
+};
+
+const createSessionSegment = (
+  id: number,
+  startTime: string,
+  endTime: string,
+): SessionSegment => ({
+  id,
+  startTime,
+  endTime,
+  durationSeconds: differenceInSeconds(startTime, endTime),
+});
+
+const createManualSession = (
+  sessions: TaskSession[],
+  taskId: number,
+  draft: SessionDraft,
+): TaskSession => {
+  const sessionId = createSessionId(sessions);
+  const segmentId = createSegmentId(sessions);
+  const auditEventId = createAuditEventId(sessions);
+  const normalized = normalizeSessionDraft(draft);
+
+  return {
+    id: sessionId,
+    taskId,
+    origin: "manual",
+    startedAt: normalized.startTime,
+    endedAt: normalized.endTime,
+    date: toDateKey(normalized.startTime),
+    segments: [
+      createSessionSegment(segmentId, normalized.startTime, normalized.endTime),
+    ],
+    auditEvents: [
+      createAuditEvent(
+        auditEventId,
+        "manual-added",
+        normalized.endTime,
+        "Ajout manuel de temps.",
+      ),
+    ],
+    createdAt: normalized.endTime,
+    updatedAt: normalized.endTime,
+  };
+};
+
+const toTaskSessionsFromLegacyEntries = (
+  entries: LegacyTimeEntry[],
+): TaskSession[] => {
+  let nextAuditEventId = 1;
+
+  return entries.map((entry, index) => ({
+    id: index + 1,
+    taskId: entry.taskId,
+    origin: "timer",
+    startedAt: entry.startTime,
+    endedAt: entry.endTime,
+    date: entry.date,
+    segments: [
+      {
+        id: index + 1,
+        startTime: entry.startTime,
+        endTime: entry.endTime,
+        durationSeconds: entry.durationSeconds,
+      },
+    ],
+    auditEvents: [
+      createAuditEvent(
+        nextAuditEventId++,
+        "migrated",
+        entry.createdAt,
+        "Session migrée depuis une ancienne entrée de temps.",
+      ),
+    ],
+    createdAt: entry.createdAt,
+    updatedAt: entry.endTime,
+  }));
+};
+
+export const migratePersistedState = (
+  persistedState: unknown,
+): TimeTrackerDataState => {
+  const state = (persistedState ?? {}) as
+    | (LegacyPersistedState & Partial<TimeTrackerDataState>)
+    | undefined;
+
+  if (state?.sessions) {
+    return {
+      tasks: syncTaskTotals(state.tasks ?? [], state.sessions),
+      tags: state.tags ?? [],
+      sessions: state.sessions,
+      activeTimer: state.activeTimer ?? null,
+      selectedTagIds: state.selectedTagIds ?? [],
+      currentView: state.currentView ?? "grid",
+      reportAnchor: state.reportAnchor ?? todayKey(),
+      resumeCandidateSessionId: null,
+    };
+  }
+
+  const sessions = toTaskSessionsFromLegacyEntries(state?.timeEntries ?? []);
+  const activeTimer = state?.activeTimer
+    ? {
+        taskId: state.activeTimer.taskId,
+        sessionId: createSessionId(sessions),
+        segmentStartTime: state.activeTimer.startTime,
+        updatedAt: state.activeTimer.updatedAt,
+      }
+    : null;
+
+  const migratedSessions = activeTimer
+    ? [
+        ...sessions,
+        {
+          id: activeTimer.sessionId,
+          taskId: activeTimer.taskId,
+          origin: "timer",
+          startedAt: activeTimer.segmentStartTime,
+          endedAt: null,
+          date: toDateKey(activeTimer.segmentStartTime),
+          segments: [],
+          auditEvents: [
+            createAuditEvent(
+              createAuditEventId(sessions),
+              "migrated",
+              activeTimer.updatedAt,
+              "Timer actif migré et en attente de finalisation.",
+            ),
+          ],
+          createdAt: activeTimer.segmentStartTime,
+          updatedAt: activeTimer.updatedAt,
+        },
+      ]
+    : sessions;
+
+  return {
+    tasks: syncTaskTotals(state?.tasks ?? [], migratedSessions),
+    tags: state?.tags ?? [],
+    sessions: migratedSessions,
+    activeTimer,
+    selectedTagIds: state?.selectedTagIds ?? [],
+    currentView: state?.currentView ?? "grid",
+    reportAnchor: state?.reportAnchor ?? todayKey(),
+    resumeCandidateSessionId: null,
+  };
+};
+
 export const timeTrackerStorageKey = "time-tracker-storage";
 
 export const createInitialTimeTrackerData = (): TimeTrackerDataState => ({
   tasks: [],
   tags: [],
-  timeEntries: [],
+  sessions: [],
   activeTimer: null,
   selectedTagIds: [],
   currentView: "grid",
   reportAnchor: todayKey(),
+  resumeCandidateSessionId: null,
 });
 
 export const useTimeTrackerStore = create<TimeTrackerState>()(
@@ -129,10 +364,21 @@ export const useTimeTrackerStore = create<TimeTrackerState>()(
           tasks: state.tasks
             .filter((task) => task.id !== taskId)
             .map((task, index) => ({ ...task, position: index })),
-          timeEntries: state.timeEntries.filter(
-            (entry) => entry.taskId !== taskId,
+          sessions: state.sessions.filter(
+            (session) => session.taskId !== taskId,
           ),
+          resumeCandidateSessionId:
+            state.resumeCandidateSessionId !== null &&
+            state.sessions.some(
+              (session) =>
+                session.id === state.resumeCandidateSessionId &&
+                session.taskId === taskId,
+            )
+              ? null
+              : state.resumeCandidateSessionId,
         }));
+
+        set((state) => ({ tasks: syncTaskTotals(state.tasks, state.sessions) }));
       },
       reorderTasks: (activeTaskId, overTaskId) => {
         if (activeTaskId === overTaskId) {
@@ -172,12 +418,76 @@ export const useTimeTrackerStore = create<TimeTrackerState>()(
           get().stopTimer(startedAt);
         }
 
-        set({
-          activeTimer: {
-            taskId,
-            startTime: startedAt,
-            updatedAt: startedAt,
-          },
+        set((state) => {
+          const resumableSession =
+            state.resumeCandidateSessionId !== null
+              ? state.sessions.find(
+                  (session) =>
+                    session.id === state.resumeCandidateSessionId &&
+                    session.taskId === taskId,
+                )
+              : undefined;
+
+          const nextAuditEventId = createAuditEventId(state.sessions);
+          let sessions = state.sessions;
+          let sessionId: number;
+
+          if (resumableSession) {
+            sessionId = resumableSession.id;
+            sessions = state.sessions.map((session) =>
+              session.id === resumableSession.id
+                ? {
+                    ...session,
+                    endedAt: null,
+                    updatedAt: startedAt,
+                    auditEvents: [
+                      ...session.auditEvents,
+                      createAuditEvent(
+                        nextAuditEventId,
+                        "resumed",
+                        startedAt,
+                        "Session relancée immédiatement sur la même tâche.",
+                      ),
+                    ],
+                  }
+                : session,
+            );
+          } else {
+            sessionId = createSessionId(state.sessions);
+            sessions = [
+              ...state.sessions,
+              {
+                id: sessionId,
+                taskId,
+                origin: "timer",
+                startedAt,
+                endedAt: null,
+                date: toDateKey(startedAt),
+                segments: [],
+                auditEvents: [
+                  createAuditEvent(
+                    nextAuditEventId,
+                    "started",
+                    startedAt,
+                    "Chrono démarré.",
+                  ),
+                ],
+                createdAt: startedAt,
+                updatedAt: startedAt,
+              },
+            ];
+          }
+
+          return {
+            sessions,
+            activeTimer: {
+              taskId,
+              sessionId,
+              segmentStartTime: startedAt,
+              updatedAt: startedAt,
+            },
+            resumeCandidateSessionId: null,
+          };
         });
       },
       stopTimer: (stoppedAt = new Date().toISOString()) => {
@@ -188,36 +498,67 @@ export const useTimeTrackerStore = create<TimeTrackerState>()(
 
         set((state) => {
           const durationSeconds = differenceInSeconds(
-            activeTimer.startTime,
+            activeTimer.segmentStartTime,
             stoppedAt,
           );
           if (durationSeconds === 0) {
-            return { activeTimer: null };
+            return {
+              activeTimer: null,
+              resumeCandidateSessionId: null,
+              sessions: state.sessions.filter(
+                (session) =>
+                  !(
+                    session.id === activeTimer.sessionId &&
+                    session.segments.length === 0 &&
+                    session.origin === "timer"
+                  ),
+              ),
+            };
           }
+
+          const nextSegmentId = createSegmentId(state.sessions);
+          const nextAuditEventId = createAuditEventId(state.sessions);
+          const sessions = state.sessions.map((session) => {
+            if (session.id !== activeTimer.sessionId) {
+              return session;
+            }
+
+            return {
+              ...session,
+              endedAt: stoppedAt,
+              updatedAt: stoppedAt,
+              segments: [
+                ...session.segments,
+                createSessionSegment(
+                  nextSegmentId,
+                  activeTimer.segmentStartTime,
+                  stoppedAt,
+                ),
+              ],
+              auditEvents: [
+                ...session.auditEvents,
+                createAuditEvent(
+                  nextAuditEventId,
+                  "stopped",
+                  stoppedAt,
+                  "Chrono arrêté.",
+                ),
+              ],
+            };
+          });
 
           return {
             activeTimer: null,
-            tasks: state.tasks.map((task) =>
-              task.id === activeTimer.taskId
-                ? {
-                    ...task,
-                    totalTimeSeconds: task.totalTimeSeconds + durationSeconds,
-                    updatedAt: stoppedAt,
-                  }
-                : task,
+            sessions,
+            tasks: syncTaskTotals(
+              state.tasks.map((task) =>
+                task.id === activeTimer.taskId
+                  ? { ...task, updatedAt: stoppedAt }
+                  : task,
+              ),
+              sessions,
             ),
-            timeEntries: [
-              ...state.timeEntries,
-              {
-                id: createTimeEntryId(state.timeEntries),
-                taskId: activeTimer.taskId,
-                startTime: activeTimer.startTime,
-                endTime: stoppedAt,
-                durationSeconds,
-                date: todayKey(),
-                createdAt: stoppedAt,
-              },
-            ],
+            resumeCandidateSessionId: activeTimer.sessionId,
           };
         });
       },
@@ -229,6 +570,98 @@ export const useTimeTrackerStore = create<TimeTrackerState>()(
         }
 
         get().startTimer(taskId);
+      },
+      addManualSession: (taskId, draft) => {
+        const normalized = normalizeSessionDraft(draft);
+        if (
+          differenceInSeconds(normalized.startTime, normalized.endTime) === 0
+        ) {
+          return;
+        }
+
+        set((state) => {
+          const nextSession = createManualSession(state.sessions, taskId, normalized);
+          const sessions = [...state.sessions, nextSession];
+
+          return {
+            sessions,
+            tasks: syncTaskTotals(
+              state.tasks.map((task) =>
+                task.id === taskId
+                  ? { ...task, updatedAt: normalized.endTime }
+                  : task,
+              ),
+              sessions,
+            ),
+            resumeCandidateSessionId: null,
+          };
+        });
+      },
+      updateSession: (sessionId, draft) => {
+        const normalized = normalizeSessionDraft(draft);
+        if (
+          differenceInSeconds(normalized.startTime, normalized.endTime) === 0 ||
+          get().activeTimer?.sessionId === sessionId
+        ) {
+          return;
+        }
+
+        set((state) => {
+          const nextSegmentId = createSegmentId(state.sessions);
+          const nextAuditEventId = createAuditEventId(state.sessions);
+          const sessions = state.sessions.map((session) => {
+            if (session.id !== sessionId) {
+              return session;
+            }
+
+            return {
+              ...session,
+              startedAt: normalized.startTime,
+              endedAt: normalized.endTime,
+              date: toDateKey(normalized.startTime),
+              segments: [
+                createSessionSegment(
+                  nextSegmentId,
+                  normalized.startTime,
+                  normalized.endTime,
+                ),
+              ],
+              updatedAt: normalized.endTime,
+              auditEvents: [
+                ...session.auditEvents,
+                createAuditEvent(
+                  nextAuditEventId,
+                  "manually-edited",
+                  normalized.endTime,
+                  "Session modifiée manuellement.",
+                ),
+              ],
+            };
+          });
+
+          return {
+            sessions,
+            tasks: syncTaskTotals(state.tasks, sessions),
+            resumeCandidateSessionId: null,
+          };
+        });
+      },
+      deleteSession: (sessionId) => {
+        if (get().activeTimer?.sessionId === sessionId) {
+          set({ activeTimer: null });
+        }
+
+        set((state) => {
+          const sessions = state.sessions.filter((session) => session.id !== sessionId);
+          return {
+            sessions,
+            tasks: syncTaskTotals(state.tasks, sessions),
+            resumeCandidateSessionId:
+              state.resumeCandidateSessionId === sessionId
+                ? null
+                : state.resumeCandidateSessionId,
+          };
+        });
       },
       addTag: (name, color) => {
         const trimmed = name.trim();
@@ -306,6 +739,7 @@ export const useTimeTrackerStore = create<TimeTrackerState>()(
               updatedAt: new Date().toISOString(),
             };
           }),
+          resumeCandidateSessionId: null,
         }));
       },
       setSelectedTagIds: (tagIds) => set({ selectedTagIds: tagIds }),
@@ -323,7 +757,8 @@ export const useTimeTrackerStore = create<TimeTrackerState>()(
     }),
     {
       name: timeTrackerStorageKey,
-      version: 1,
+      version: 2,
+      migrate: (persistedState) => migratePersistedState(persistedState),
       onRehydrateStorage: () => (state) => {
         state?.finalizeRecoveredTimer();
       },

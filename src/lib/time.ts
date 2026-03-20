@@ -33,6 +33,12 @@ export const formatHoursMinutes = (totalSeconds: number): string => {
   return `${hours}h ${minutes}m`;
 };
 
+export const formatDateTime = (value: string): string =>
+  new Intl.DateTimeFormat("fr-FR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+
 export const differenceInSeconds = (
   startTime: string,
   endTime: string,
@@ -78,3 +84,14 @@ export const shiftWeek = (anchor: string | Date, amount: number): string => {
 };
 
 export const todayKey = (): string => toDateKey(new Date());
+
+export const toDateTimeLocalInputValue = (value: string): string => {
+  const date = new Date(value);
+  const offsetDate = new Date(
+    date.getTime() - date.getTimezoneOffset() * 60000,
+  );
+  return offsetDate.toISOString().slice(0, 16);
+};
+
+export const fromDateTimeLocalInputValue = (value: string): string =>
+  new Date(value).toISOString();

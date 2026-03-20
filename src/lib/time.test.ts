@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatDateTime,
   formatClock,
   formatHoursMinutes,
+  fromDateTimeLocalInputValue,
   startOfWeek,
+  toDateTimeLocalInputValue,
   toDateKey,
 } from "./time";
 import { summarizeWeek } from "./weekly";
@@ -22,7 +25,16 @@ describe("time helpers", () => {
     );
   });
 
-  it("aggregates a weekly summary by task and day", () => {
+  it("round-trips a datetime-local input value", () => {
+    const value = toDateTimeLocalInputValue("2026-03-20T10:15:00.000Z");
+    expect(fromDateTimeLocalInputValue(value)).toBe("2026-03-20T10:15:00.000Z");
+  });
+
+  it("formats a localized date time string", () => {
+    expect(formatDateTime("2026-03-20T10:15:00.000Z")).toContain("2026");
+  });
+
+  it("aggregates a weekly summary by task and start day", () => {
     const summary = summarizeWeek(
       [
         {
@@ -40,11 +52,28 @@ describe("time helpers", () => {
         {
           id: 1,
           taskId: 1,
-          startTime: "2026-03-17T08:00:00.000Z",
-          endTime: "2026-03-17T09:00:00.000Z",
-          durationSeconds: 3600,
+          origin: "manual",
+          startedAt: "2026-03-17T23:30:00.000Z",
+          endedAt: "2026-03-18T00:30:00.000Z",
           date: "2026-03-17",
-          createdAt: "2026-03-17T09:00:00.000Z",
+          segments: [
+            {
+              id: 1,
+              startTime: "2026-03-17T23:30:00.000Z",
+              endTime: "2026-03-18T00:30:00.000Z",
+              durationSeconds: 3600,
+            },
+          ],
+          auditEvents: [
+            {
+              id: 1,
+              type: "manual-added",
+              at: "2026-03-18T00:30:00.000Z",
+              description: "Ajout manuel de temps.",
+            },
+          ],
+          createdAt: "2026-03-18T00:30:00.000Z",
+          updatedAt: "2026-03-18T00:30:00.000Z",
         },
       ],
       "2026-03-20",

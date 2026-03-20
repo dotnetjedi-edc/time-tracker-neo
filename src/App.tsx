@@ -3,6 +3,7 @@ import type { Task, TaskDraft } from "./types";
 import { Header } from "./components/Header";
 import { TaskGrid } from "./components/TaskGrid";
 import { TaskModal } from "./components/TaskModal";
+import { TaskSessionsModal } from "./components/TaskSessionsModal";
 import { TagsModal } from "./components/TagsModal";
 import { WeeklyView } from "./components/WeeklyView";
 import { differenceInSeconds } from "./lib/time";
@@ -11,7 +12,7 @@ import { useTimeTrackerStore } from "./store/useTimeTrackerStore";
 export default function App() {
   const tasks = useTimeTrackerStore((state) => state.tasks);
   const tags = useTimeTrackerStore((state) => state.tags);
-  const timeEntries = useTimeTrackerStore((state) => state.timeEntries);
+  const sessions = useTimeTrackerStore((state) => state.sessions);
   const activeTimer = useTimeTrackerStore((state) => state.activeTimer);
   const selectedTagIds = useTimeTrackerStore((state) => state.selectedTagIds);
   const currentView = useTimeTrackerStore((state) => state.currentView);
@@ -21,6 +22,9 @@ export default function App() {
   const deleteTask = useTimeTrackerStore((state) => state.deleteTask);
   const reorderTasks = useTimeTrackerStore((state) => state.reorderTasks);
   const toggleTimer = useTimeTrackerStore((state) => state.toggleTimer);
+  const addManualSession = useTimeTrackerStore((state) => state.addManualSession);
+  const updateSession = useTimeTrackerStore((state) => state.updateSession);
+  const deleteSession = useTimeTrackerStore((state) => state.deleteSession);
   const addTag = useTimeTrackerStore((state) => state.addTag);
   const updateTag = useTimeTrackerStore((state) => state.updateTag);
   const deleteTag = useTimeTrackerStore((state) => state.deleteTag);
@@ -33,7 +37,10 @@ export default function App() {
 
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [tagsModalOpen, setTagsModalOpen] = useState(false);
+  const [sessionsModalOpen, setSessionsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [sessionTask, setSessionTask] = useState<Task | null>(null);
+  const [sessionsModalView, setSessionsModalView] = useState<"manual" | "history">("manual");
   const [now, setNow] = useState(() => Date.now());
   const appSessionStartedAt = useRef(Date.now());
 
@@ -77,7 +84,7 @@ export default function App() {
           task.id,
           task.totalTimeSeconds +
             differenceInSeconds(
-              activeTimer.startTime,
+              activeTimer.segmentStartTime,
               new Date(now).toISOString(),
             ),
         ];
@@ -101,6 +108,16 @@ export default function App() {
         : [...selectedTagIds, tagId],
     );
   };
+
+  const openSessionsModal = (task: Task, view: "manual" | "history") => {
+    setSessionTask(task);
+    setSessionsModalView(view);
+    setSessionsModalOpen(true);
+  };
+
+  const taskSessions = sessionTask
+    ? sessions.filter((session) => session.taskId === sessionTask.id)
+    : [];
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,136,91,0.22),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(110,214,181,0.2),_transparent_25%),linear-gradient(180deg,_#f7f0e5_0%,_#f2f4f7_100%)] text-ink">
@@ -129,6 +146,8 @@ export default function App() {
                 setEditingTask(task);
                 setTaskModalOpen(true);
               }}
+              onOpenManualTime={(task) => openSessionsModal(task, "manual")}
+              onOpenHistory={(task) => openSessionsModal(task, "history")}
               onAddTask={() => {
                 setEditingTask(null);
                 setTaskModalOpen(true);
@@ -139,7 +158,7 @@ export default function App() {
             <WeeklyView
               tasks={tasks}
               tags={tags}
-              timeEntries={timeEntries}
+              sessions={sessions}
               anchorDate={reportAnchor}
               selectedTagIds={selectedTagIds}
               onMoveWeek={moveReportWeek}
@@ -176,6 +195,21 @@ export default function App() {
         onCreate={addTag}
         onUpdate={(tagId, name, color) => updateTag(tagId, { name, color })}
         onDelete={deleteTag}
+      />
+
+      <TaskSessionsModal
+        task={sessionTask}
+        sessions={taskSessions}
+        activeSessionId={activeTimer?.sessionId ?? null}
+        isOpen={sessionsModalOpen}
+        initialView={sessionsModalView}
+        onClose={() => {
+          setSessionsModalOpen(false);
+          setSessionTask(null);
+        }}
+        onCreate={addManualSession}
+        onUpdate={updateSession}
+        onDelete={deleteSession}
       />
     </div>
   );

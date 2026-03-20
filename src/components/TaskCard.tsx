@@ -1,5 +1,5 @@
 import { useSortable } from "@dnd-kit/sortable";
-import { GripVertical, Pencil, Play, Square } from "lucide-react";
+import { Clock3, GripVertical, History, Pencil, Play, Square } from "lucide-react";
 import { getTagTone } from "../lib/tagStyles";
 import type { Tag, Task } from "../types";
 import { formatClock } from "../lib/time";
@@ -11,6 +11,8 @@ interface TaskCardProps {
   liveSeconds: number;
   onToggleTimer: (taskId: number) => void;
   onEdit: (task: Task) => void;
+  onOpenManualTime: (task: Task) => void;
+  onOpenHistory: (task: Task) => void;
 }
 
 export function TaskCard({
@@ -20,6 +22,8 @@ export function TaskCard({
   liveSeconds,
   onToggleTimer,
   onEdit,
+  onOpenManualTime,
+  onOpenHistory,
 }: TaskCardProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useSortable({
     id: task.id,
@@ -113,6 +117,25 @@ export function TaskCard({
           </div>
         </div>
       </button>
+
+      <div className="mt-4 flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={() => onOpenManualTime(task)}
+          className="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white/85 px-4 py-2 text-sm font-semibold text-ink/65 transition hover:border-ink/30 hover:text-ink"
+        >
+          <Clock3 size={16} />
+          Temps manuel
+        </button>
+        <button
+          type="button"
+          onClick={() => onOpenHistory(task)}
+          className="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white/85 px-4 py-2 text-sm font-semibold text-ink/65 transition hover:border-ink/30 hover:text-ink"
+        >
+          <History size={16} />
+          Historique
+        </button>
+      </div>
     </article>
   );
 }

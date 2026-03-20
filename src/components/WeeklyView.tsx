@@ -1,20 +1,12 @@
 import { getTagTone } from "../lib/tagStyles";
-import type { Tag, Task } from "../types";
+import type { Tag, Task, TaskSession } from "../types";
 import { formatHoursMinutes, toDateKey, weekDays } from "../lib/time";
 import { summarizeWeek } from "../lib/weekly";
 
 interface WeeklyViewProps {
   tasks: Task[];
   tags: Tag[];
-  timeEntries: Array<{
-    id: number;
-    taskId: number;
-    startTime: string;
-    endTime: string;
-    durationSeconds: number;
-    date: string;
-    createdAt: string;
-  }>;
+  sessions: TaskSession[];
   anchorDate: string;
   selectedTagIds: number[];
   onMoveWeek: (direction: -1 | 1) => void;
@@ -29,14 +21,14 @@ const dayFormatter = new Intl.DateTimeFormat("fr-FR", {
 export function WeeklyView({
   tasks,
   tags,
-  timeEntries,
+  sessions,
   anchorDate,
   selectedTagIds,
   onMoveWeek,
 }: WeeklyViewProps) {
   const summary = summarizeWeek(
     tasks,
-    timeEntries,
+    sessions,
     anchorDate,
     selectedTagIds,
     tags,
