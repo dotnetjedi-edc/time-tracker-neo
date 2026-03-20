@@ -1,10 +1,10 @@
 ---
-project_name: 'time-tracker3'
-user_name: 'Eric'
-date: '2026-03-20'
+project_name: "time-tracker3"
+user_name: "Eric"
+date: "2026-03-20"
 sections_completed: []
 existing_patterns_found: 0
-status: 'initialized'
+status: "initialized"
 optimized_for_llm: false
 ---
 
