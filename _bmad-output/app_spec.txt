@@ -1,0 +1,424 @@
+<project_specification>
+  <project_name>Time Tracker</project_name>
+
+  <overview>
+    Time Tracker est une application web MVP minimaliste de suivi de temps personnel. Elle permet de démarrer/arrêter des chronomètres via de gros boutons cliquables organisés en grille, d'organiser les tâches avec des tags, et de visualiser un rapport hebdomadaire du temps passé sur chaque tâche. L'application cible principalement l'utilisation sur tablette, mais reste responsive pour mobile et desktop.
+  </overview>
+
+  <technology_stack>
+    <frontend>
+      <framework>React</framework>
+      <build_tool>Vite</build_tool>
+      <styling>Tailwind CSS</styling>
+      <state_management>React Context API ou Zustand (pour l'état global des chronomètres)</state_management>
+    </frontend>
+    <backend>
+      <runtime>Node.js</runtime>
+      <deployment>Vercel Serverless Functions</deployment>
+      <database>Turso (libSQL/SQLite distribuée)</database>
+      <orm>Drizzle ORM (recommandé pour Turso)</orm>
+    </backend>
+    <communication>
+      <api>REST API</api>
+      <data_format>JSON</data_format>
+    </communication>
+  </technology_stack>
+
+  <prerequisites>
+    <environment_setup>
+      - Node.js v18+ installé
+      - Compte Vercel (gratuit) pour le déploiement
+      - Base de données Turso créée (gratuit)
+      - Variables d'environnement : TURSO_DATABASE_URL, TURSO_AUTH_TOKEN
+    </environment_setup>
+  </prerequisites>
+
+  <feature_count>62</feature_count>
+
+  <security_and_access_control>
+    <user_roles>
+      <role name="anonymous_user">
+        <permissions>
+          - Accès complet à toutes les fonctionnalités (MVP sans authentification)
+          - Créer, modifier, supprimer des tâches
+          - Gérer les tags
+          - Voir tous les rapports
+        </permissions>
+        <protected_routes>
+          - Aucune route protégée (application ouverte)
+        </protected_routes>
+      </role>
+    </user_roles>
+    <authentication>
+      <method>none - MVP sans authentification</method>
+      <session_timeout>N/A</session_timeout>
+      <password_requirements>N/A</password_requirements>
+    </authentication>
+    <sensitive_operations>
+      - Aucune opération sensible dans cette version MVP
+    </sensitive_operations>
+  </security_and_access_control>
+
+  <core_features>
+    <task_management>
+      - Créer une nouvelle tâche avec nom
+      - Renommer une tâche existante
+      - Supprimer une tâche
+      - Ajouter un commentaire optionnel à une tâche (via bouton options)
+      - Modifier le commentaire d'une tâche
+      - Supprimer le commentaire d'une tâche
+      - Assigner un ou plusieurs tags à une tâche
+      - Retirer des tags d'une tâche
+      - Afficher la liste des tâches sous forme de grille de gros boutons
+      - Réorganiser les tâches par drag & drop dans la grille
+      - Sauvegarder l'ordre des tâches
+      - État vide au premier démarrage : affichage du bouton "Nouvelle tâche" uniquement
+    </task_management>
+
+    <timer_functionality>
+      - Démarrer un chronomètre en cliquant sur le bouton d'une tâche
+      - Arrêter le chronomètre actif en re-cliquant sur le même bouton
+      - Arrêter automatiquement tout autre chronomètre quand un nouveau démarre (un seul actif à la fois)
+      - Afficher le temps accumulé sur chaque bouton de tâche
+      - Mettre à jour l'affichage du temps en temps réel (seconde par seconde) pour le chronomètre actif
+      - Animation visuelle du bouton actif (pulsation ou effet visuel)
+      - Indication visuelle claire du chronomètre actif vs inactifs
+      - Arrêter automatiquement le chronomètre si l'application est fermée/rechargée
+      - Enregistrer le temps écoulé dans la base de données à chaque arrêt
+      - Accumuler le temps pour chaque session de travail sur une tâche
+      - Afficher le temps total accumulé pour chaque tâche (toutes sessions confondues)
+      - Format d'affichage du temps : HH:MM:SS
+    </timer_functionality>
+
+    <tag_system>
+      - Créer un nouveau tag avec nom et couleur
+      - Supprimer un tag existant
+      - Renommer un tag
+      - Changer la couleur d'un tag
+      - Afficher tous les tags disponibles dans un menu dédié
+      - Assigner un tag à une tâche en un clic
+      - Permettre plusieurs tags par tâche
+      - Afficher les tags associés à chaque tâche
+      - Gérer les tâches orphelines quand un tag est supprimé (retirer l'association)
+      - Filtrer l'affichage par tag(s) sélectionné(s)
+    </tag_system>
+
+    <calendar_view>
+      - Afficher une vue calendrier hebdomadaire
+      - Navigation entre les semaines (semaine précédente/suivante)
+      - Afficher le temps passé sur chaque tâche pour chaque jour de la semaine
+      - Calculer et afficher le total d'heures par jour
+      - Calculer et afficher le total d'heures pour la semaine complète
+      - Filtrer la vue calendrier par tag(s)
+      - Afficher les tags associés aux tâches dans le calendrier
+      - Afficher les jours de la semaine (Lun-Dim)
+      - Mettre en évidence le jour actuel
+      - Afficher les données en format heures:minutes (ex: 2h 30m)
+      - Gérer l'état vide (semaine sans données enregistrées)
+      - Basculer entre vue principale (grille de boutons) et vue calendrier
+    </calendar_view>
+
+    <responsive_design>
+      - Layout optimisé pour tablette (cas d'usage principal)
+      - Adaptation responsive pour mobile (smartphone)
+      - Adaptation responsive pour desktop (ordinateur)
+      - Taille des boutons adaptée à l'écran (grands et facilement cliquables)
+      - Grille responsive (nombre de colonnes adapté à la largeur d'écran)
+      - Touch-friendly pour drag & drop sur tablette/mobile
+      - Navigation adaptée à chaque taille d'écran
+      - Texte lisible sur toutes les tailles d'écran
+    </responsive_design>
+  </core_features>
+
+  <database_schema>
+    <tables>
+      <tasks>
+        - id (INTEGER PRIMARY KEY AUTOINCREMENT)
+        - name (TEXT NOT NULL)
+        - comment (TEXT NULL)
+        - total_time_seconds (INTEGER DEFAULT 0) - temps total accumulé
+        - position (INTEGER DEFAULT 0) - ordre dans la grille
+        - created_at (DATETIME DEFAULT CURRENT_TIMESTAMP)
+        - updated_at (DATETIME DEFAULT CURRENT_TIMESTAMP)
+      </tasks>
+
+      <tags>
+        - id (INTEGER PRIMARY KEY AUTOINCREMENT)
+        - name (TEXT NOT NULL UNIQUE)
+        - color (TEXT NOT NULL) - code couleur hex
+        - created_at (DATETIME DEFAULT CURRENT_TIMESTAMP)
+      </tags>
+
+      <task_tags>
+        - task_id (INTEGER REFERENCES tasks(id) ON DELETE CASCADE)
+        - tag_id (INTEGER REFERENCES tags(id) ON DELETE CASCADE)
+        - PRIMARY KEY (task_id, tag_id)
+      </task_tags>
+
+      <time_entries>
+        - id (INTEGER PRIMARY KEY AUTOINCREMENT)
+        - task_id (INTEGER REFERENCES tasks(id) ON DELETE CASCADE)
+        - start_time (DATETIME NOT NULL)
+        - end_time (DATETIME NULL)
+        - duration_seconds (INTEGER DEFAULT 0)
+        - date (DATE NOT NULL) - date de l'entrée pour les rapports
+        - created_at (DATETIME DEFAULT CURRENT_TIMESTAMP)
+      </time_entries>
+
+      <active_timer>
+        - id (INTEGER PRIMARY KEY CHECK (id = 1)) - une seule ligne
+        - task_id (INTEGER REFERENCES tasks(id) ON DELETE SET NULL)
+        - start_time (DATETIME)
+        - updated_at (DATETIME DEFAULT CURRENT_TIMESTAMP)
+      </active_timer>
+    </tables>
+  </database_schema>
+
+  <api_endpoints_summary>
+    <tasks>
+      - GET /api/tasks - Récupérer toutes les tâches avec leurs tags
+      - POST /api/tasks - Créer une nouvelle tâche
+      - PATCH /api/tasks/:id - Modifier une tâche (nom, commentaire)
+      - DELETE /api/tasks/:id - Supprimer une tâche
+      - PATCH /api/tasks/reorder - Réorganiser les tâches (drag & drop)
+    </tasks>
+
+    <tags>
+      - GET /api/tags - Récupérer tous les tags
+      - POST /api/tags - Créer un nouveau tag
+      - PATCH /api/tags/:id - Modifier un tag (nom, couleur)
+      - DELETE /api/tags/:id - Supprimer un tag
+      - POST /api/tasks/:id/tags - Assigner un tag à une tâche
+      - DELETE /api/tasks/:id/tags/:tagId - Retirer un tag d'une tâche
+    </tags>
+
+    <timers>
+      - GET /api/timer/active - Récupérer le chronomètre actif
+      - POST /api/timer/start - Démarrer un chronomètre (arrête les autres)
+      - POST /api/timer/stop - Arrêter le chronomètre actif
+      - GET /api/tasks/:id/time - Obtenir le temps total d'une tâche
+    </timers>
+
+    <reports>
+      - GET /api/reports/weekly?date=YYYY-MM-DD - Rapport hebdomadaire
+      - GET /api/reports/weekly?date=YYYY-MM-DD&tags=id1,id2 - Rapport filtré par tags
+      - GET /api/reports/daily?date=YYYY-MM-DD - Rapport journalier
+    </reports>
+  </api_endpoints_summary>
+
+  <ui_layout>
+    <main_structure>
+      Layout principal avec deux vues :
+
+      1. **Vue Principale (Grille de tâches)** :
+         - Header : Titre "Time Tracker" + bouton bascule vers Calendrier + bouton Gérer Tags
+         - Grille responsive de gros boutons de tâches (2-4 colonnes selon écran)
+         - Chaque bouton affiche : nom de la tâche, temps total, tags associés, icône options
+         - Bouton "+" (Nouvelle tâche) en bas ou en dernière position de la grille
+         - Animation/highlight visuel pour le bouton avec chronomètre actif
+
+      2. **Vue Calendrier Hebdomadaire** :
+         - Header : Titre + Navigation semaine (← →) + Filtres tags + bouton retour à Grille
+         - Calendrier : 7 colonnes (Lun-Dim) avec liste des tâches et temps par jour
+         - Footer : Total par jour sous chaque colonne + Total semaine global
+         - Mise en évidence du jour actuel
+
+      3. **Modales/Overlays** :
+         - Formulaire "Nouvelle tâche" (nom, tags optionnels)
+         - Menu options tâche (renommer, commentaire, supprimer)
+         - Menu gestion des tags (CRUD tags)
+         - Filtres par tags (multi-sélection)
+    </main_structure>
+
+    <responsive_behavior>
+      - **Tablette (prioritaire)** : 3-4 colonnes, boutons ~150x150px
+      - **Mobile** : 2 colonnes, boutons ~120x120px, navigation simplifiée
+      - **Desktop** : 4-5 colonnes, boutons ~180x180px, plus d'espace
+    </responsive_behavior>
+  </ui_layout>
+
+  <design_system>
+    <color_palette>
+      - Palette neutre moderne (gris clair/foncé pour fond)
+      - Couleurs vives pour les boutons de tâches (bleu, vert, orange, violet...)
+      - Couleurs personnalisables pour les tags
+      - Animation pulsation ou glow pour bouton actif (ex: vert lumineux)
+      - États visuels clairs : hover, active, disabled
+    </color_palette>
+
+    <typography>
+      - Police sans-serif moderne et lisible (Inter, Roboto, ou system font)
+      - Tailles adaptées : grands chiffres pour les temps, texte lisible sur petits écrans
+      - Bold pour les titres et temps actifs
+    </typography>
+
+    <spacing_and_sizing>
+      - Gros boutons facilement cliquables (touch-friendly)
+      - Espacement généreux entre les éléments (minimum 16px)
+      - Padding confortable dans les boutons (minimum 24px)
+    </spacing_and_sizing>
+  </design_system>
+
+  <implementation_steps>
+    <step number="1">
+      <title>Configuration initiale du projet</title>
+      <tasks>
+        - Initialiser projet React avec Vite
+        - Configurer Tailwind CSS
+        - Configurer connexion Turso avec Drizzle ORM
+        - Créer le schéma de base de données
+        - Mettre en place les Vercel Serverless Functions
+        - Tester la connexion base de données
+      </tasks>
+    </step>
+
+    <step number="2">
+      <title>Backend - API REST</title>
+      <tasks>
+        - Implémenter endpoints CRUD pour tasks
+        - Implémenter endpoints CRUD pour tags
+        - Implémenter endpoints pour timer (start/stop/active)
+        - Implémenter endpoints pour reports (weekly/daily)
+        - Implémenter logique "un seul timer actif"
+        - Tests unitaires des endpoints
+      </tasks>
+    </step>
+
+    <step number="3">
+      <title>Frontend - Gestion des tâches</title>
+      <tasks>
+        - Créer composant TaskButton (gros bouton avec timer)
+        - Créer grille responsive de tâches
+        - Implémenter drag & drop pour réorganisation
+        - Formulaire création/édition de tâche
+        - Menu options tâche (commentaire, renommer, supprimer)
+        - État vide (premier démarrage)
+      </tasks>
+    </step>
+
+    <step number="4">
+      <title>Frontend - Système de chronomètres</title>
+      <tasks>
+        - Logique start/stop timer
+        - Mise à jour temps réel (seconde par seconde)
+        - Animation visuelle du bouton actif
+        - Affichage du temps total sur chaque bouton
+        - Gestion état global du timer actif
+        - Arrêt automatique lors de fermeture/refresh
+      </tasks>
+    </step>
+
+    <step number="5">
+      <title>Frontend - Système de tags</title>
+      <tasks>
+        - Menu de gestion des tags (CRUD)
+        - Interface d'assignation tags aux tâches
+        - Affichage tags sur les boutons de tâches
+        - Sélecteur de couleur pour tags
+        - Filtrage par tags
+      </tasks>
+    </step>
+
+    <step number="6">
+      <title>Frontend - Vue calendrier</title>
+      <tasks>
+        - Layout calendrier hebdomadaire
+        - Navigation entre semaines
+        - Affichage temps par tâche par jour
+        - Calcul et affichage totaux (jour + semaine)
+        - Filtres par tags dans le calendrier
+        - Mise en évidence du jour actuel
+        - Bascule entre vue grille et vue calendrier
+      </tasks>
+    </step>
+
+    <step number="7">
+      <title>Responsive et optimisations</title>
+      <tasks>
+        - Optimisation layout tablette
+        - Optimisation layout mobile
+        - Optimisation layout desktop
+        - Touch gestures pour drag & drop mobile
+        - Performance : mémorisation, lazy loading si nécessaire
+        - Tests sur différents appareils
+      </tasks>
+    </step>
+
+    <step number="8">
+      <title>Polish et déploiement</title>
+      <tasks>
+        - Transitions et animations fluides
+        - Gestion des erreurs et feedbacks utilisateur
+        - Loading states
+        - Configuration Vercel pour déploiement
+        - Tests end-to-end
+        - Documentation README
+      </tasks>
+    </step>
+  </implementation_steps>
+
+  <success_criteria>
+    <functionality>
+      - Toutes les tâches peuvent être créées, modifiées, supprimées
+      - Les chronomètres démarrent/s'arrêtent correctement (un seul actif)
+      - Le temps s'accumule correctement et persiste en base de données
+      - Les tags peuvent être créés, assignés, et utilisés pour filtrer
+      - Le calendrier hebdomadaire affiche correctement les données
+      - Les totaux (jour/semaine) sont calculés avec précision
+      - Le drag & drop fonctionne sur tous les appareils
+    </functionality>
+
+    <user_experience>
+      - Les boutons sont gros et facilement cliquables (touch-friendly)
+      - L'animation du bouton actif est claire et visible
+      - Le temps s'affiche en temps réel sans lag
+      - La navigation entre vues est intuitive
+      - Les formulaires sont simples et rapides à utiliser
+      - Pas de friction dans les interactions courantes
+    </user_experience>
+
+    <technical_quality>
+      - L'application se charge rapidement (< 2 secondes)
+      - Pas d'erreurs console
+      - Code propre et commenté
+      - Base de données Turso connectée et fonctionnelle
+      - Déployé avec succès sur Vercel
+      - L'application fonctionne hors ligne pour les actions non-critiques (optionnel)
+    </technical_quality>
+
+    <design_polish>
+      - Design moderne et épuré
+      - Responsive parfait sur tablette (prioritaire)
+      - Responsive fonctionnel sur mobile et desktop
+      - Couleurs cohérentes et agréables
+      - Espacement et typographie soignés
+      - Animations fluides sans saccades
+    </design_polish>
+  </success_criteria>
+
+  <implementation_status>
+    <status>Implementation Complete - local-first MVP increment</status>
+    <completed_scope>
+      - Projet React + Vite + TypeScript + Tailwind initialisé à la racine du repo
+      - Persistance locale de l'état via Zustand
+      - CRUD des tâches avec commentaire et assignation multi-tags
+      - Grille responsive de gros boutons avec réorganisation drag and drop
+      - Chronomètre unique actif avec affichage temps réel et arrêt automatique sur reload
+      - Gestion CRUD des tags avec palette de couleurs
+      - Filtres par tags sur la grille et sur le rapport hebdomadaire
+      - Vue calendrier hebdomadaire avec navigation semaine précédente/suivante et totaux
+      - README de démarrage et tests unitaires des helpers temporels
+    </completed_scope>
+    <deferred_scope>
+      - Connexion Turso, schéma Drizzle ORM et fonctions Vercel serverless
+      - Endpoints REST réels pour tasks, tags, timers et reports
+      - Tests backend et end-to-end
+      - Déploiement Vercel et configuration d'environnement
+      - États de chargement réseau et gestion d'erreurs backend
+    </deferred_scope>
+    <reasoning>
+      - Le repo initial ne contenait aucune base applicative ni backend existant à étendre.
+      - Cet incrément livre un MVP front exécutable immédiatement, aligné sur les principaux parcours utilisateurs, tout en préparant un branchement ultérieur vers Turso/Vercel.
+    </reasoning>
+  </implementation_status>
+</project_specification>
