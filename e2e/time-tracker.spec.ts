@@ -89,3 +89,43 @@ test("allows manual time entry and exposes task history", async ({ page }) => {
   await expect(page.getByText("Lecture")).toBeVisible();
   await expect(page.getByText("1h 30m").first()).toBeVisible();
 });
+
+test("reorders task cards with drag and drop", async ({ page }) => {
+  await page.getByRole("button", { name: /nouvelle tâche/i }).click();
+  let taskDialog = page.getByRole("dialog", { name: /nouvelle tâche/i });
+  await taskDialog.getByLabel("Nom de la tâche").fill("Alpha");
+  await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
+
+  await page.getByRole("button", { name: /nouvelle tâche/i }).click();
+  taskDialog = page.getByRole("dialog", { name: /nouvelle tâche/i });
+  await taskDialog.getByLabel("Nom de la tâche").fill("Beta");
+  await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
+
+  const firstCard = page.getByTestId("task-card-1");
+  const secondCard = page.getByTestId("task-card-2");
+  const secondHandle = secondCard.getByRole("button", {
+    name: /réorganiser beta/i,
+  });
+
+  const firstCardBox = await firstCard.boundingBox();
+  const secondHandleBox = await secondHandle.boundingBox();
+
+  if (!firstCardBox || !secondHandleBox) {
+    throw new Error("Unable to locate task cards for drag and drop test.");
+  }
+
+  await page.mouse.move(
+    secondHandleBox.x + secondHandleBox.width / 2,
+    secondHandleBox.y + secondHandleBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    firstCardBox.x + firstCardBox.width / 2,
+    firstCardBox.y + firstCardBox.height / 2,
+    { steps: 20 },
+  );
+  await page.mouse.up();
+
+  await expect(page.locator('[data-testid^="task-card-"] h3').first()).toHaveText("Beta");
+  await expect(page.locator('[data-testid^="task-card-"] h3').nth(1)).toHaveText("Alpha");
+});

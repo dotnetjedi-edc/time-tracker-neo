@@ -1,4 +1,7 @@
 import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import type { ComponentPropsWithoutRef } from "react";
+import { useEffect, useRef } from "react";
 import { Clock3, GripVertical, History, Pencil, Play, Square } from "lucide-react";
 import { getTagTone } from "../lib/tagStyles";
 import type { Tag, Task } from "../types";
@@ -15,7 +18,14 @@ interface TaskCardProps {
   onOpenHistory: (task: Task) => void;
 }
 
-export function TaskCard({
+interface TaskCardSurfaceProps extends TaskCardProps {
+  dragHandleProps?: ComponentPropsWithoutRef<"button">;
+  isDragging?: boolean;
+  isOverlay?: boolean;
+  setNodeRef?: (node: HTMLElement | null) => void;
+}
+
+function TaskCardSurface({
   task,
   taskTags,
   isActive,
@@ -24,21 +34,25 @@ export function TaskCard({
   onEdit,
   onOpenManualTime,
   onOpenHistory,
-}: TaskCardProps) {
-  const { attributes, listeners, setNodeRef, isDragging } = useSortable({
-    id: task.id,
-  });
-
+  dragHandleProps,
+  isDragging = false,
+  isOverlay = false,
+  setNodeRef,
+}: TaskCardSurfaceProps) {
   return (
     <article
       ref={setNodeRef}
       data-testid={`task-card-${task.id}`}
       className={[
-        "group relative flex min-h-[230px] flex-col overflow-hidden rounded-[2rem] border p-5 shadow-card transition sm:min-h-[250px] sm:p-6",
+        "group relative flex min-h-[230px] flex-col overflow-hidden rounded-[2rem] border p-5 shadow-card transition-[transform,opacity,box-shadow,border-color] duration-200 ease-out sm:min-h-[250px] sm:p-6",
         isActive
           ? "animate-pulseGlow border-mint/50 bg-gradient-to-br from-mint/30 via-white to-gold/25"
           : "border-white/70 bg-white/80 hover:-translate-y-1 hover:border-ink/10",
-        isDragging ? "opacity-80" : "opacity-100",
+        isDragging && !isOverlay
+          ? "opacity-0"
+          : "opacity-100",
+        isOverlay ? "z-30 rotate-1 shadow-2xl ring-1 ring-ink/10 cursor-grabbing" : "",
+        "transform-gpu",
       ].join(" ")}
     >
       <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-coral via-gold to-mint" />
@@ -47,8 +61,8 @@ export function TaskCard({
           type="button"
           className="rounded-full border border-ink/10 bg-white/80 p-2 text-ink/55 transition hover:border-ink/30 hover:text-ink"
           aria-label={`Réorganiser ${task.name}`}
-          {...attributes}
-          {...listeners}
+          tabIndex={isDragging && !isOverlay ? -1 : undefined}
+          {...dragHandleProps}
         >
           <GripVertical size={16} />
         </button>
@@ -56,7 +70,8 @@ export function TaskCard({
         <button
           type="button"
           onClick={() => onEdit(task)}
-          className="rounded-full border border-ink/10 bg-white/80 p-2 text-ink/55 transition hover:border-ink/30 hover:text-ink"
+          disabled={isDragging && !isOverlay}
+          className="rounded-full border border-ink/10 bg-white/80 p-2 text-ink/55 transition hover:border-ink/30 hover:text-ink disabled:pointer-events-none"
           aria-label={`Modifier ${task.name}`}
         >
           <Pencil size={16} />
@@ -66,8 +81,9 @@ export function TaskCard({
       <button
         type="button"
         onClick={() => onToggleTimer(task.id)}
+        disabled={isDragging && !isOverlay}
         aria-label={`Basculer le chrono pour ${task.name}`}
-        className="mt-4 flex flex-1 flex-col items-start justify-between text-left"
+        className="mt-4 flex flex-1 flex-col items-start justify-between text-left disabled:pointer-events-none"
       >
         <div className="space-y-3">
           <div className="flex items-center gap-2">
@@ -122,7 +138,8 @@ export function TaskCard({
         <button
           type="button"
           onClick={() => onOpenManualTime(task)}
-          className="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white/85 px-4 py-2 text-sm font-semibold text-ink/65 transition hover:border-ink/30 hover:text-ink"
+          disabled={isDragging && !isOverlay}
+          className="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white/85 px-4 py-2 text-sm font-semibold text-ink/65 transition hover:border-ink/30 hover:text-ink disabled:pointer-events-none"
         >
           <Clock3 size={16} />
           Temps manuel
@@ -130,7 +147,8 @@ export function TaskCard({
         <button
           type="button"
           onClick={() => onOpenHistory(task)}
-          className="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white/85 px-4 py-2 text-sm font-semibold text-ink/65 transition hover:border-ink/30 hover:text-ink"
+          disabled={isDragging && !isOverlay}
+          className="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white/85 px-4 py-2 text-sm font-semibold text-ink/65 transition hover:border-ink/30 hover:text-ink disabled:pointer-events-none"
         >
           <History size={16} />
           Historique
@@ -138,4 +156,61 @@ export function TaskCard({
       </div>
     </article>
   );
+}
+
+export function TaskCard({
+  task,
+  taskTags,
+  isActive,
+  liveSeconds,
+  onToggleTimer,
+  onEdit,
+  onOpenManualTime,
+  onOpenHistory,
+}: TaskCardProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: task.id,
+  });
+  const articleRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!articleRef.current) {
+      return;
+    }
+
+    articleRef.current.style.transform = CSS.Transform.toString(transform);
+    articleRef.current.style.transition = transition ?? "";
+  }, [transform, transition]);
+
+  const handleSetNodeRef = (node: HTMLElement | null) => {
+    articleRef.current = node;
+    setNodeRef(node);
+  };
+
+  return (
+    <TaskCardSurface
+      task={task}
+      taskTags={taskTags}
+      isActive={isActive}
+      liveSeconds={liveSeconds}
+      onToggleTimer={onToggleTimer}
+      onEdit={onEdit}
+      onOpenManualTime={onOpenManualTime}
+      onOpenHistory={onOpenHistory}
+      dragHandleProps={{ ...attributes, ...listeners }}
+      isDragging={isDragging}
+      setNodeRef={handleSetNodeRef}
+    />
+  );
+}
+
+export function TaskCardOverlay(props: TaskCardProps) {
+  return <TaskCardSurface {...props} isOverlay />;
 }

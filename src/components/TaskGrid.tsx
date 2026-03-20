@@ -1,20 +1,25 @@
 import {
   closestCenter,
   DndContext,
+  DragOverlay,
   KeyboardSensor,
   PointerSensor,
   TouchSensor,
   useSensor,
   useSensors,
+  type DragOverEvent,
   type DragEndEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import {
+  arrayMove,
   SortableContext,
   rectSortingStrategy,
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
+import { useEffect, useRef, useState } from "react";
 import type { Tag, Task } from "../types";
-import { TaskCard } from "./TaskCard";
+import { TaskCard, TaskCardOverlay } from "./TaskCard";
 
 interface TaskGridProps {
   tasks: Task[];
@@ -26,7 +31,7 @@ interface TaskGridProps {
   onOpenManualTime: (task: Task) => void;
   onOpenHistory: (task: Task) => void;
   onAddTask: () => void;
-  onReorder: (activeTaskId: number, overTaskId: number) => void;
+  onReorder: (taskIds: number[]) => void;
 }
 
 export function TaskGrid({
@@ -41,6 +46,13 @@ export function TaskGrid({
   onAddTask,
   onReorder,
 }: TaskGridProps) {
+  const [draggedTaskId, setDraggedTaskId] = useState<number | null>(null);
+  const [dragOverlayWidth, setDragOverlayWidth] = useState<number | null>(null);
+  const [orderedTaskIds, setOrderedTaskIds] = useState<number[]>(() =>
+    tasks.map((task) => task.id),
+  );
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, {
@@ -51,12 +63,90 @@ export function TaskGrid({
     }),
   );
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  useEffect(() => {
+    if (draggedTaskId !== null) {
+      return;
+    }
+
+    setOrderedTaskIds(tasks.map((task) => task.id));
+  }, [draggedTaskId, tasks]);
+
+  const tasksById = new Map(tasks.map((task) => [task.id, task]));
+  const orderedTasks = orderedTaskIds
+    .map((taskId) => tasksById.get(taskId))
+    .filter((task): task is Task => task !== undefined);
+
+  const draggedTask =
+    draggedTaskId === null ? null : (tasksById.get(draggedTaskId) ?? null);
+
+  useEffect(() => {
+    if (!overlayRef.current) {
+      return;
+    }
+
+    overlayRef.current.style.width = dragOverlayWidth
+      ? `${dragOverlayWidth}px`
+      : "";
+  }, [dragOverlayWidth]);
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setDraggedTaskId(Number(event.active.id));
+    setDragOverlayWidth(event.active.rect.current.initial?.width ?? null);
+    setOrderedTaskIds(tasks.map((task) => task.id));
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
     if (!event.over) {
       return;
     }
 
-    onReorder(Number(event.active.id), Number(event.over.id));
+    const activeId = Number(event.active.id);
+    const overId = Number(event.over.id);
+
+    if (activeId === overId) {
+      return;
+    }
+
+    setOrderedTaskIds((currentTaskIds) => {
+      const activeIndex = currentTaskIds.indexOf(activeId);
+      const overIndex = currentTaskIds.indexOf(overId);
+
+      if (activeIndex < 0 || overIndex < 0 || activeIndex === overIndex) {
+        return currentTaskIds;
+      }
+
+      return arrayMove(currentTaskIds, activeIndex, overIndex);
+    });
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const initialTaskIds = tasks.map((task) => task.id);
+
+    if (!event.over) {
+      setDraggedTaskId(null);
+      setDragOverlayWidth(null);
+      setOrderedTaskIds(initialTaskIds);
+      return;
+    }
+
+    const finalTaskIds = orderedTaskIds;
+    const hasOrderChanged = finalTaskIds.some(
+      (taskId, index) => taskId !== initialTaskIds[index],
+    );
+
+    if (hasOrderChanged) {
+      onReorder(finalTaskIds);
+    }
+
+    setDraggedTaskId(null);
+    setDragOverlayWidth(null);
+    setOrderedTaskIds(finalTaskIds);
+  };
+
+  const handleDragCancel = () => {
+    setDraggedTaskId(null);
+    setDragOverlayWidth(null);
+    setOrderedTaskIds(tasks.map((task) => task.id));
   };
 
   if (tasks.length === 0) {
@@ -87,14 +177,14 @@ export function TaskGrid({
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
     >
-      <SortableContext
-        items={tasks.map((task) => task.id)}
-        strategy={rectSortingStrategy}
-      >
+      <SortableContext items={orderedTaskIds} strategy={rectSortingStrategy}>
         <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-          {tasks.map((task) => (
+          {orderedTasks.map((task) => (
             <TaskCard
               key={task.id}
               task={task}
@@ -117,6 +207,29 @@ export function TaskGrid({
           </button>
         </section>
       </SortableContext>
+      <DragOverlay>
+        {draggedTask ? (
+          <div
+            ref={overlayRef}
+            className="pointer-events-none max-w-[calc(100vw-2rem)]"
+          >
+            <TaskCardOverlay
+              task={draggedTask}
+              taskTags={tags.filter((tag) =>
+                draggedTask.tagIds.includes(tag.id),
+              )}
+              isActive={activeTaskId === draggedTask.id}
+              liveSeconds={
+                liveTotals[draggedTask.id] ?? draggedTask.totalTimeSeconds
+              }
+              onToggleTimer={onToggleTimer}
+              onEdit={onEditTask}
+              onOpenManualTime={onOpenManualTime}
+              onOpenHistory={onOpenHistory}
+            />
+          </div>
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 }

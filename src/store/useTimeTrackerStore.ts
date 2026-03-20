@@ -26,6 +26,7 @@ interface TimeTrackerState {
   addTask: (draft: TaskDraft) => void;
   updateTask: (taskId: number, draft: TaskDraft) => void;
   deleteTask: (taskId: number) => void;
+  setTaskOrder: (taskIds: number[]) => void;
   reorderTasks: (activeTaskId: number, overTaskId: number) => void;
   startTimer: (taskId: number, startedAt?: string) => void;
   stopTimer: (stoppedAt?: string) => void;
@@ -121,6 +122,23 @@ const normalizeSessionDraft = (draft: SessionDraft): SessionDraft => ({
   startTime: draft.startTime,
   endTime: draft.endTime,
 });
+
+const applyTaskOrder = (tasks: Task[], orderedTaskIds: number[]): Task[] => {
+  const taskById = new Map(tasks.map((task) => [task.id, task]));
+  const orderedTasks = orderedTaskIds
+    .map((taskId) => taskById.get(taskId))
+    .filter((task): task is Task => task !== undefined);
+
+  if (orderedTasks.length !== tasks.length) {
+    return tasks;
+  }
+
+  return orderedTasks.map((task, index) => ({
+    ...task,
+    position: index,
+    updatedAt: new Date().toISOString(),
+  }));
+};
 
 const createAuditEvent = (
   id: number,
@@ -380,6 +398,14 @@ export const useTimeTrackerStore = create<TimeTrackerState>()(
 
         set((state) => ({ tasks: syncTaskTotals(state.tasks, state.sessions) }));
       },
+      setTaskOrder: (taskIds) => {
+        set((state) => ({
+          tasks: applyTaskOrder(
+            [...state.tasks].sort((left, right) => left.position - right.position),
+            taskIds,
+          ),
+        }));
+      },
       reorderTasks: (activeTaskId, overTaskId) => {
         if (activeTaskId === overTaskId) {
           return;
@@ -401,11 +427,7 @@ export const useTimeTrackerStore = create<TimeTrackerState>()(
           ordered.splice(overIndex, 0, moved);
 
           return {
-            tasks: ordered.map((task, index) => ({
-              ...task,
-              position: index,
-              updatedAt: new Date().toISOString(),
-            })),
+            tasks: applyTaskOrder(ordered, ordered.map((task) => task.id)),
           };
         });
       },

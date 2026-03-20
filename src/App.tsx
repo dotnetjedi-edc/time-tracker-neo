@@ -20,7 +20,7 @@ export default function App() {
   const addTask = useTimeTrackerStore((state) => state.addTask);
   const updateTask = useTimeTrackerStore((state) => state.updateTask);
   const deleteTask = useTimeTrackerStore((state) => state.deleteTask);
-  const reorderTasks = useTimeTrackerStore((state) => state.reorderTasks);
+  const setTaskOrder = useTimeTrackerStore((state) => state.setTaskOrder);
   const toggleTimer = useTimeTrackerStore((state) => state.toggleTimer);
   const addManualSession = useTimeTrackerStore((state) => state.addManualSession);
   const updateSession = useTimeTrackerStore((state) => state.updateSession);
@@ -152,7 +152,7 @@ export default function App() {
                 setEditingTask(null);
                 setTaskModalOpen(true);
               }}
-              onReorder={reorderTasks}
+              onReorder={setTaskOrder}
             />
           ) : (
             <WeeklyView
