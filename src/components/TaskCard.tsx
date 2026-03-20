@@ -2,7 +2,14 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { ComponentPropsWithoutRef } from "react";
 import { useEffect, useRef } from "react";
-import { Clock3, GripVertical, History, Pencil, Play, Square } from "lucide-react";
+import {
+  Clock3,
+  GripVertical,
+  History,
+  Pencil,
+  Play,
+  Square,
+} from "lucide-react";
 import { getTagTone } from "../lib/tagStyles";
 import type { Tag, Task } from "../types";
 import { formatClock } from "../lib/time";
@@ -48,10 +55,10 @@ function TaskCardSurface({
         isActive
           ? "animate-pulseGlow border-mint/50 bg-gradient-to-br from-mint/30 via-white to-gold/25"
           : "border-white/70 bg-white/80 hover:-translate-y-1 hover:border-ink/10",
-        isDragging && !isOverlay
-          ? "opacity-0"
-          : "opacity-100",
-        isOverlay ? "z-30 rotate-1 shadow-2xl ring-1 ring-ink/10 cursor-grabbing" : "",
+        isDragging && !isOverlay ? "opacity-0" : "opacity-100",
+        isOverlay
+          ? "z-30 rotate-1 shadow-2xl ring-1 ring-ink/10 cursor-grabbing"
+          : "",
         "transform-gpu",
       ].join(" ")}
     >
@@ -185,7 +192,8 @@ export function TaskCard({
       return;
     }
 
-    articleRef.current.style.transform = CSS.Transform.toString(transform) ?? "";
+    articleRef.current.style.transform =
+      CSS.Transform.toString(transform) ?? "";
     articleRef.current.style.transition = transition ?? "";
   }, [transform, transition]);
 
