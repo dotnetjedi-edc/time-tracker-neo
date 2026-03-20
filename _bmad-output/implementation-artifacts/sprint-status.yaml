@@ -1,0 +1,40 @@
+# Sprint status generated from _bmad-output/planning-artifacts/epics.md
+# generated: 2026-03-20 23:50
+# last_updated: 2026-03-20 23:50
+# project: time-tracker3
+# project_key: TT3
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+
+generated: 2026-03-20 23:50
+last_updated: 2026-03-20 23:50
+project: time-tracker3
+project_key: TT3
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+  epic-1: backlog
+  1-1-persist-active-timer-across-refresh-and-reopen: backlog
+  1-2-show-recovered-active-timer-status: backlog
+  1-3-stop-a-recovered-timer-manually: backlog
+  1-4-add-regression-coverage-for-timer-recovery: backlog
+  epic-1-retrospective: optional
+
+  epic-2: backlog
+  2-1-drag-tasks-from-the-card-surface: backlog
+  2-2-toggle-timer-with-a-simple-card-click-or-tap: backlog
+  2-3-prevent-accidental-timer-toggles-during-reordering: backlog
+  2-4-add-regression-coverage-for-card-click-and-drag-behavior: backlog
+  epic-2-retrospective: optional
+
+  epic-3: in-progress
+  3-1-reduce-header-vertical-footprint: done
+  3-2-preserve-compact-header-actions-and-filters: done
+  3-3-compact-mobile-task-cards: review
+  epic-3-retrospective: optional
+
+  epic-4: backlog
+  4-1-prepare-task-and-session-models-for-future-workflow-extensions: backlog
+  4-2-prepare-ui-interaction-boundaries-for-future-shortcuts-and-advanced-actions: backlog
+  epic-4-retrospective: optional

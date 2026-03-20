@@ -6,7 +6,9 @@ test.beforeEach(async ({ page }) => {
   await page.reload();
 });
 
-test("creates a tag and a task, runs the timer and exposes weekly totals", async ({ page }) => {
+test("creates a tag and a task, runs the timer and exposes weekly totals", async ({
+  page,
+}) => {
   await page.getByRole("button", { name: /gérer les tags/i }).click();
   const tagsDialog = page.getByRole("dialog", { name: /gestion des tags/i });
   await tagsDialog.getByLabel("Nom du nouveau tag").fill("Client");
@@ -33,23 +35,39 @@ test("creates a tag and a task, runs the timer and exposes weekly totals", async
   await expect(page.getByText("00:00:02")).toBeVisible();
 
   await page.getByRole("button", { name: /vue calendrier/i }).click();
-  await expect(page.getByRole("heading", { name: /temps passé par tâche et par jour/i })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /temps passé par tâche et par jour/i }),
+  ).toBeVisible();
   await expect(page.getByText("Session client")).toBeVisible();
 });
 
-test("reload stops an active timer and persists the accumulated time", async ({ page }) => {
+test("reload keeps an active timer running until the user stops it manually", async ({
+  page,
+}) => {
   await page.getByRole("button", { name: /nouvelle tâche/i }).click();
   const taskDialog = page.getByRole("dialog", { name: /nouvelle tâche/i });
   await taskDialog.getByLabel("Nom de la tâche").fill("Focus");
   await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
 
-  await page.getByRole("button", { name: /basculer le chrono pour focus/i }).click({ force: true });
+  await page
+    .getByRole("button", { name: /basculer le chrono pour focus/i })
+    .click({ force: true });
   await page.waitForTimeout(1200);
   await page.reload();
 
-  await expect(page.getByText("Focus")).toBeVisible();
-  await expect(page.getByText("00:00:01")).toBeVisible();
-  await expect(page.getByText("Prêt")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /arrêter le chrono actif/i }),
+  ).toBeVisible();
+  await expect(page.getByRole("banner").getByText("Focus")).toBeVisible();
+
+  const focusCard = page.getByTestId("task-card-1");
+  await expect(focusCard.getByText(/^actif$/i)).toBeVisible();
+
+  await page.getByRole("button", { name: /arrêter le chrono actif/i }).click();
+
+  await expect(page.getByText(/^chrono actif$/i)).toHaveCount(0);
+  await expect(focusCard.getByText(/^prêt$/i)).toBeVisible();
+  await expect(focusCard.getByText(/00:00:0[1-9]/i)).toBeVisible();
 });
 
 test("allows manual time entry and exposes task history", async ({ page }) => {
@@ -79,8 +97,12 @@ test("allows manual time entry and exposes task history", async ({ page }) => {
     .getByRole("button", { name: /ajouter la session/i })
     .click();
 
-  await expect(sessionsDialog.getByText(/1 session enregistrée/i)).toBeVisible();
-  await expect(sessionsDialog.getByText(/ajout manuel de temps/i)).toBeVisible();
+  await expect(
+    sessionsDialog.getByText(/1 session enregistrée/i),
+  ).toBeVisible();
+  await expect(
+    sessionsDialog.getByText(/ajout manuel de temps/i),
+  ).toBeVisible();
   await sessionsDialog.getByRole("button", { name: /fermer/i }).click();
 
   await expect(page.getByText("01:30:00")).toBeVisible();
@@ -126,6 +148,120 @@ test("reorders task cards with drag and drop", async ({ page }) => {
   );
   await page.mouse.up();
 
-  await expect(page.locator('[data-testid^="task-card-"] h3').first()).toHaveText("Beta");
-  await expect(page.locator('[data-testid^="task-card-"] h3').nth(1)).toHaveText("Alpha");
+  await expect(
+    page.locator('[data-testid^="task-card-"] h3').first(),
+  ).toHaveText("Beta");
+  await expect(
+    page.locator('[data-testid^="task-card-"] h3').nth(1),
+  ).toHaveText("Alpha");
+});
+
+test.describe("compact header on mobile", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test("keeps header controls usable and still leaves task content in view", async ({
+    page,
+  }) => {
+    await page.getByRole("button", { name: /gérer les tags/i }).click();
+    const tagsDialog = page.getByRole("dialog", { name: /gestion des tags/i });
+    await tagsDialog.getByLabel("Nom du nouveau tag").fill("Client");
+    await tagsDialog.getByRole("button", { name: /ajouter/i }).click();
+    await tagsDialog.getByRole("button", { name: /^fermer$/i }).click();
+
+    await page.getByRole("button", { name: /nouvelle tâche/i }).click();
+    const taskDialog = page.getByRole("dialog", { name: /nouvelle tâche/i });
+    await taskDialog.getByLabel("Nom de la tâche").fill("Session mobile");
+    await taskDialog
+      .getByLabel("Commentaire de la tâche")
+      .fill("Validation du header compact");
+    await taskDialog.getByRole("button", { name: /^client$/i }).click();
+    await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
+
+    await page
+      .getByRole("button", { name: /basculer le chrono pour session mobile/i })
+      .click({ force: true });
+
+    await expect(
+      page.getByRole("button", { name: /arrêter le chrono actif/i }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /vue calendrier/i }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /gérer les tags/i }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /réinitialiser les filtres/i }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /^client$/i })).toBeVisible();
+
+    await page.getByRole("button", { name: /^client$/i }).click();
+    await expect(page.getByTestId("task-card-1")).toBeVisible();
+    await expect(page.getByTestId("task-card-1")).toBeInViewport();
+    await expect(
+      page.getByTestId("task-card-1").getByText("Session mobile"),
+    ).toBeVisible();
+  });
+});
+
+test("keeps task cards compact and operable on a phone-sized viewport", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  await page.getByRole("button", { name: /gérer les tags/i }).click();
+  const tagsDialog = page.getByRole("dialog", { name: /gestion des tags/i });
+  await tagsDialog.getByLabel("Nom du nouveau tag").fill("Client");
+  await tagsDialog.getByRole("button", { name: /ajouter/i }).click();
+  await tagsDialog.getByLabel("Nom du nouveau tag").fill("Mobile");
+  await tagsDialog.getByRole("button", { name: /ajouter/i }).click();
+  await tagsDialog.getByRole("button", { name: /^fermer$/i }).click();
+
+  await page.getByRole("button", { name: /nouvelle tâche/i }).click();
+  const taskDialog = page.getByRole("dialog", { name: /nouvelle tâche/i });
+  await taskDialog
+    .getByLabel("Nom de la tâche")
+    .fill("Préparation atelier client mobile");
+  await taskDialog
+    .getByLabel("Commentaire de la tâche")
+    .fill("Synthèse, validation et partage des décisions importantes");
+  await taskDialog.getByRole("button", { name: /^client$/i }).click();
+  await taskDialog.getByRole("button", { name: /^mobile$/i }).click();
+  await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
+
+  const taskCard = page.getByTestId("task-card-1");
+  await expect(taskCard).toBeVisible();
+  await expect(
+    taskCard.getByRole("button", { name: /temps manuel/i }),
+  ).toBeVisible();
+  await expect(
+    taskCard.getByRole("button", { name: /historique/i }),
+  ).toBeVisible();
+
+  await expect(
+    taskCard.getByText(/préparation atelier client mobile/i),
+  ).toBeVisible();
+  await expect(
+    taskCard.getByText(
+      /synthèse, validation et partage des décisions importantes/i,
+    ),
+  ).toBeVisible();
+
+  const hasHorizontalOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > window.innerWidth,
+  );
+
+  expect(hasHorizontalOverflow).toBe(false);
+
+  await taskCard
+    .getByRole("button", {
+      name: /basculer le chrono pour préparation atelier client mobile/i,
+    })
+    .click({ force: true });
+  await page.waitForTimeout(1100);
+
+  await expect(taskCard.getByText(/^actif$/i)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /arrêter le chrono actif/i }),
+  ).toBeVisible();
 });

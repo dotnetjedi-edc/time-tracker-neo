@@ -151,21 +151,21 @@ export function TaskGrid({
 
   if (tasks.length === 0) {
     return (
-      <section className="rounded-[2rem] border border-dashed border-ink/15 bg-white/60 p-8 text-center shadow-card backdrop-blur">
-        <p className="text-sm font-semibold uppercase tracking-[0.22em] text-ink/45">
+      <section className="rounded-[2rem] border border-dashed border-ink/15 bg-white/60 p-6 text-center shadow-card backdrop-blur sm:p-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-ink/45 sm:text-sm">
           Premier démarrage
         </p>
-        <h2 className="mt-3 font-serif text-3xl text-ink">
+        <h2 className="mt-3 font-serif text-[1.75rem] text-ink sm:text-3xl">
           Commencez avec votre première tâche
         </h2>
-        <p className="mx-auto mt-3 max-w-xl text-base leading-7 text-ink/65">
+        <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-ink/65 sm:text-base sm:leading-7">
           Le MVP démarre volontairement vide. Créez une tâche, ajoutez des tags
           si besoin puis lancez le chrono d’un simple tap.
         </p>
         <button
           type="button"
           onClick={onAddTask}
-          className="mt-8 rounded-full bg-ink px-6 py-4 text-sm font-semibold text-white transition hover:bg-ink/90"
+          className="mt-6 rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-ink/90 sm:mt-8 sm:px-6 sm:py-4"
         >
           Nouvelle tâche
         </button>
@@ -183,7 +183,7 @@ export function TaskGrid({
       onDragCancel={handleDragCancel}
     >
       <SortableContext items={orderedTaskIds} strategy={rectSortingStrategy}>
-        <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        <section className="grid gap-4 sm:gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {orderedTasks.map((task) => (
             <TaskCard
               key={task.id}
@@ -201,7 +201,7 @@ export function TaskGrid({
           <button
             type="button"
             onClick={onAddTask}
-            className="flex min-h-[230px] items-center justify-center rounded-[2rem] border border-dashed border-ink/20 bg-white/45 p-8 text-xl font-semibold text-ink/60 transition hover:border-ink/40 hover:bg-white/70 hover:text-ink sm:min-h-[250px]"
+            className="flex min-h-[196px] items-center justify-center rounded-[2rem] border border-dashed border-ink/20 bg-white/45 p-6 text-lg font-semibold text-ink/60 transition hover:border-ink/40 hover:bg-white/70 hover:text-ink sm:min-h-[250px] sm:p-8 sm:text-xl"
           >
             + Nouvelle tâche
           </button>

@@ -1,7 +1,13 @@
 ---
 stepsCompleted: [1, 2, 3, 4]
 inputDocuments:
-  - conversation-confirmed backlog and user requests (2026-03-20)
+  - _bmad-output/planning-artifacts/epics.md
+  - README.md
+  - _bmad-output/implementation-artifacts/3-1-reduce-header-vertical-footprint.md
+  - _bmad-output/implementation-artifacts/3-2-preserve-compact-header-actions-and-filters.md
+  - _bmad-output/implementation-artifacts/3-3-compact-mobile-task-cards.md
+  - _bmad-output/implementation-artifacts/tech-spec-manual-time-entry-and-session-history.md
+  - user request: add Turso-hosted persistence with local test support (2026-03-20)
 ---
 
 # time-tracker3 - Epic Breakdown
@@ -10,7 +16,11 @@ inputDocuments:
 
 This document provides the complete epic and story breakdown for time-tracker3, decomposing the confirmed backlog and user-requested improvements into implementable stories.
 
-The source scope for this version is the user-confirmed backlog captured during the March 20, 2026 planning conversation. No PRD, Architecture, or UX specification files were found in the expected planning artifact locations at the time of creation.
+The source scope for this version is the confirmed backlog, README guidance, existing implementation artifacts, and the March 20, 2026 user request to add Turso-backed persistence with local database support for development and testing.
+
+No standalone PRD, Architecture, or UX specification files were found in the expected planning artifact locations at the time of this extraction pass, so the requirements below are synthesized from the confirmed planning backlog, implementation specs, and repository notes.
+
+The epic coverage and story breakdown below predate the new Turso persistence request and will need to be redesigned in the next workflow step to cover the newly extracted requirements.
 
 ## Requirements Inventory
 
@@ -44,6 +54,14 @@ FR13: The system should display contextual information indicating when the activ
 
 FR14: The system should support future enhancements for task archiving, CSV export, and keyboard shortcuts without requiring a redesign of the timer model.
 
+FR15: The system must persist tasks, tags, active timer state, sessions, and history in a Turso-compatible SQL database that can be hosted remotely.
+
+FR16: The system must support the same persistence model against a local libSQL or SQLite-compatible database for local development and automated testing.
+
+FR17: The system must provide a migration path from the current localStorage-backed Zustand persistence into the database-backed persistence model without losing existing user data.
+
+FR18: The system must preserve manual time entry, session history, weekly reporting, and task ordering behavior after moving persistence into the database layer.
+
 ### NonFunctional Requirements
 
 NFR1: Timer persistence must be reliable across refresh and browser restart scenarios using the existing client-side persistence model.
@@ -62,6 +80,18 @@ NFR7: The implementation must include automated regression coverage for timer pe
 
 NFR8: The implementation should minimize architectural churn by extending the existing store, timer, and DnD patterns instead of replacing them.
 
+NFR9: The hosted persistence option must be deployable on a free or low-cost Turso tier suitable for MVP usage.
+
+NFR10: Local development and automated tests must run without requiring a live connection to the hosted Turso environment.
+
+NFR11: The persistence design must keep remote Turso and local database execution compatible enough to avoid environment-specific behavior drift.
+
+NFR12: Database-backed persistence flows must be covered by automated tests that run locally in the project toolchain.
+
+NFR13: Hosted database credentials and privileged write access must not be exposed directly in the browser client.
+
+NFR14: Data migration from the existing persisted store to the database-backed model must be deterministic and idempotent.
+
 ### Additional Requirements
 
 - Preserve the current Zustand persisted store approach and extend it rather than introducing a backend dependency.
@@ -71,6 +101,11 @@ NFR8: The implementation should minimize architectural churn by extending the ex
 - Keep task order persistence compatible with the current position-based ordering model.
 - Maintain compatibility with the existing modal flows for editing tasks, adding manual time, and viewing history.
 - Prefer focused changes to existing components and tests rather than a full UI rewrite.
+- Introduce a server-side or API-based persistence adapter for Turso access so database credentials remain outside the browser bundle.
+- Use a Turso/libSQL-compatible schema that can also run locally through a file-based database during development and CI-style local test runs.
+- Prefer local database execution for development and automated tests to avoid consuming hosted Turso quota and to keep tests deterministic.
+- Keep the frontend domain model and interaction patterns stable even if persistence moves behind an API or service boundary.
+- Plan explicit migration of existing Zustand-persisted tasks, tags, sessions, and active timer recovery state into the database-backed source of truth.
 
 ### UX Design Requirements
 
@@ -89,6 +124,12 @@ UX-DR6: Provide a visible “active since” or equivalent reassurance cue after
 UX-DR7: Maintain touch-friendly target sizes for timer control, reorder interaction, and stop actions.
 
 UX-DR8: Ensure interaction feedback makes the difference between ready, active, dragging, and dropped states obvious.
+
+UX-DR9: Preserve the current low-friction task and timer flows after database-backed persistence is introduced, without forcing the user through extra save or sync steps for routine actions.
+
+UX-DR10: Provide clear loading and error feedback when database-backed data is being fetched or saved, especially during initial workspace load and save failures.
+
+UX-DR11: Keep local-development and test-mode behavior operational on localhost without exposing hosted-environment details or requiring a network-dependent user flow.
 
 ### FR Coverage Map
 
@@ -383,6 +424,29 @@ So that I gain space without losing control of the workspace.
 **When** controls wrap or reposition responsively
 **Then** the header still feels organized
 **And** no core action is hidden without an intentional interaction pattern
+
+### Story 3.3: Compact Task Cards for Phone-Sized Screens
+
+As a time-tracking user,
+I want task cards to take less vertical space on a phone-sized screen,
+So that I can scan and reach more tasks without excessive scrolling.
+
+**Acceptance Criteria:**
+
+**Given** the task grid is displayed on a phone-sized viewport
+**When** the task cards are rendered
+**Then** each card uses a more compact mobile layout with reduced vertical footprint
+**And** the interface exposes more task content within the same visible screen area
+
+**Given** a task card is shown on a phone-sized viewport
+**When** the compact layout is applied
+**Then** the timer status, task title, total time, drag affordance, and secondary actions remain readable and reachable
+**And** touch targets stay usable without overlapping or truncating core controls
+
+**Given** tasks have long names, comments, tags, or active timing state
+**When** the compact mobile card layout is displayed
+**Then** the content adapts without breaking the visual hierarchy
+**And** the active-state and drag interactions continue to behave consistently with the existing card behavior
 
 ## Epic 4: Extensible Productivity Foundations
 

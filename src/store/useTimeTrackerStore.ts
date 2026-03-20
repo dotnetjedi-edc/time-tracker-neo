@@ -42,7 +42,6 @@ interface TimeTrackerState {
   setCurrentView: (view: ViewMode) => void;
   moveReportWeek: (direction: -1 | 1) => void;
   resetFilters: () => void;
-  finalizeRecoveredTimer: () => void;
 }
 
 interface TimeTrackerDataState {
@@ -277,7 +276,7 @@ export const migratePersistedState = (
       }
     : null;
 
-  const migratedSessions = activeTimer
+  const migratedSessions: TaskSession[] = activeTimer
     ? [
         ...sessions,
         {
@@ -771,19 +770,11 @@ export const useTimeTrackerStore = create<TimeTrackerState>()(
           reportAnchor: shiftWeek(state.reportAnchor, direction),
         })),
       resetFilters: () => set({ selectedTagIds: [] }),
-      finalizeRecoveredTimer: () => {
-        if (get().activeTimer) {
-          get().stopTimer(new Date().toISOString());
-        }
-      },
     }),
     {
       name: timeTrackerStorageKey,
       version: 2,
       migrate: (persistedState) => migratePersistedState(persistedState),
-      onRehydrateStorage: () => (state) => {
-        state?.finalizeRecoveredTimer();
-      },
     },
   ),
 );

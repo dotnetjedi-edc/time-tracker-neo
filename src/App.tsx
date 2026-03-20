@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Task, TaskDraft } from "./types";
 import { Header } from "./components/Header";
 import { TaskGrid } from "./components/TaskGrid";
@@ -6,7 +6,7 @@ import { TaskModal } from "./components/TaskModal";
 import { TaskSessionsModal } from "./components/TaskSessionsModal";
 import { TagsModal } from "./components/TagsModal";
 import { WeeklyView } from "./components/WeeklyView";
-import { differenceInSeconds } from "./lib/time";
+import { differenceInSeconds, formatDateTime } from "./lib/time";
 import { useTimeTrackerStore } from "./store/useTimeTrackerStore";
 
 export default function App() {
@@ -28,6 +28,7 @@ export default function App() {
   const addTag = useTimeTrackerStore((state) => state.addTag);
   const updateTag = useTimeTrackerStore((state) => state.updateTag);
   const deleteTag = useTimeTrackerStore((state) => state.deleteTag);
+  const stopTimer = useTimeTrackerStore((state) => state.stopTimer);
   const setSelectedTagIds = useTimeTrackerStore(
     (state) => state.setSelectedTagIds,
   );
@@ -42,23 +43,11 @@ export default function App() {
   const [sessionTask, setSessionTask] = useState<Task | null>(null);
   const [sessionsModalView, setSessionsModalView] = useState<"manual" | "history">("manual");
   const [now, setNow] = useState(() => Date.now());
-  const appSessionStartedAt = useRef(Date.now());
 
   useEffect(() => {
     const timerId = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timerId);
   }, []);
-
-  useEffect(() => {
-    if (!activeTimer) {
-      return;
-    }
-
-    const timerTimestamp = new Date(activeTimer.updatedAt).getTime();
-    if (timerTimestamp <= appSessionStartedAt.current) {
-      useTimeTrackerStore.getState().stopTimer(new Date().toISOString());
-    }
-  }, [activeTimer]);
 
   const filteredTasks = useMemo(() => {
     const ordered = [...tasks].sort(
@@ -91,6 +80,49 @@ export default function App() {
       }),
     );
   }, [activeTimer, now, tasks]);
+
+  const activeTask = useMemo(
+    () =>
+      activeTimer
+        ? tasks.find((task) => task.id === activeTimer.taskId) ?? null
+        : null,
+    [activeTimer, tasks],
+  );
+
+  const activeTimerSession = useMemo(
+    () =>
+      activeTimer
+        ? sessions.find((session) => session.id === activeTimer.sessionId) ?? null
+        : null,
+    [activeTimer, sessions],
+  );
+
+  const activeTimerSummary = useMemo(() => {
+    if (!activeTimer) {
+      return null;
+    }
+
+    const sessionEvent = activeTimerSession?.auditEvents
+      .slice()
+      .reverse()
+      .find((event) => event.at === activeTimer.updatedAt);
+
+    const contextLabel =
+      sessionEvent?.type === "resumed"
+        ? "Relancé à"
+        : sessionEvent?.type === "started"
+          ? "Démarré à"
+          : "Actif depuis";
+
+    return {
+      taskName: activeTask?.name ?? "Tâche active",
+      elapsedSeconds: differenceInSeconds(
+        activeTimer.segmentStartTime,
+        new Date(now).toISOString(),
+      ),
+      context: `${contextLabel} ${formatDateTime(activeTimer.updatedAt)}`,
+    };
+  }, [activeTask, activeTimer, activeTimerSession, now]);
 
   const handleSaveTask = (draft: TaskDraft) => {
     if (editingTask) {
@@ -126,12 +158,14 @@ export default function App() {
           currentView={currentView}
           selectedTagIds={selectedTagIds}
           tags={tags}
+          activeTimer={activeTimerSummary}
           onToggleView={() =>
             setCurrentView(currentView === "grid" ? "week" : "grid")
           }
           onOpenTags={() => setTagsModalOpen(true)}
           onSelectTag={toggleSelectedTag}
           onResetFilters={resetFilters}
+          onStopActiveTimer={() => stopTimer(new Date().toISOString())}
         />
 
         <main className="space-y-8">

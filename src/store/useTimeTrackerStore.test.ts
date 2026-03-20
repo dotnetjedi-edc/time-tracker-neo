@@ -112,7 +112,7 @@ describe("useTimeTrackerStore", () => {
     expect(state.sessions).toHaveLength(0);
   });
 
-  it("migrates legacy timeEntries and finalizes a recovered timer", () => {
+  it("migrates legacy timeEntries and keeps a recovered timer active", () => {
     const migrated = migratePersistedState({
       tasks: [
         {
@@ -149,12 +149,71 @@ describe("useTimeTrackerStore", () => {
     });
 
     useTimeTrackerStore.setState(migrated);
-    useTimeTrackerStore.getState().finalizeRecoveredTimer();
 
     const state = useTimeTrackerStore.getState();
     expect(migrated.sessions.length).toBe(2);
-    expect(state.tasks[0]?.totalTimeSeconds).toBeGreaterThanOrEqual(3600);
+    expect(state.tasks[0]?.totalTimeSeconds).toBe(3600);
+    expect(state.activeTimer).toEqual({
+      taskId: 1,
+      sessionId: 2,
+      segmentStartTime: "2026-03-20T09:30:00.000Z",
+      updatedAt: "2026-03-20T09:30:00.000Z",
+    });
+    expect(state.sessions[1]?.endedAt).toBeNull();
+    expect(state.sessions[1]?.segments).toHaveLength(0);
+  });
+
+  it("stops a recovered timer manually without creating duplicate or zero-length sessions", () => {
+    const migrated = migratePersistedState({
+      tasks: [
+        {
+          id: 1,
+          name: "Focus",
+          comment: null,
+          totalTimeSeconds: 3600,
+          position: 0,
+          tagIds: [],
+          createdAt: "2026-03-20T08:00:00.000Z",
+          updatedAt: "2026-03-20T08:00:00.000Z",
+        },
+      ],
+      tags: [],
+      timeEntries: [
+        {
+          id: 1,
+          taskId: 1,
+          startTime: "2026-03-20T08:00:00.000Z",
+          endTime: "2026-03-20T09:00:00.000Z",
+          durationSeconds: 3600,
+          date: "2026-03-20",
+          createdAt: "2026-03-20T09:00:00.000Z",
+        },
+      ],
+      activeTimer: {
+        taskId: 1,
+        startTime: "2026-03-20T09:30:00.000Z",
+        updatedAt: "2026-03-20T09:30:00.000Z",
+      },
+      selectedTagIds: [],
+      currentView: "grid",
+      reportAnchor: "2026-03-20",
+    });
+
+    useTimeTrackerStore.setState(migrated);
+    useTimeTrackerStore.getState().stopTimer("2026-03-20T10:00:00.000Z");
+
+    const state = useTimeTrackerStore.getState();
     expect(state.activeTimer).toBeNull();
+    expect(state.sessions).toHaveLength(2);
+    expect(state.sessions[1]?.endedAt).toBe("2026-03-20T10:00:00.000Z");
+    expect(state.sessions[1]?.segments).toHaveLength(1);
+    expect(state.sessions[1]?.segments[0]?.durationSeconds).toBe(1800);
+    expect(state.tasks[0]?.totalTimeSeconds).toBe(5400);
+    expect(
+      state.sessions.some(
+        (session) => session.endedAt === null && session.segments.length === 0,
+      ),
+    ).toBe(false);
   });
 
   it("reorders tasks and cleans relations when deleting a tag", () => {
