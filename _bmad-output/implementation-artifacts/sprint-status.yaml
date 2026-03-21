@@ -21,11 +21,11 @@ development_status:
   1-4-add-regression-coverage-for-timer-recovery: done
   epic-1-retrospective: optional
 
-  epic-2: in-progress
-  2-1-drag-tasks-from-the-card-surface: review
-  2-2-toggle-timer-with-a-simple-card-click-or-tap: review
-  2-3-prevent-accidental-timer-toggles-during-reordering: review
-  2-4-add-regression-coverage-for-card-click-and-drag-behavior: review
+  epic-2: done
+  2-1-drag-tasks-from-the-card-surface: done
+  2-2-toggle-timer-with-a-simple-card-click-or-tap: done
+  2-3-prevent-accidental-timer-toggles-during-reordering: done
+  2-4-add-regression-coverage-for-card-click-and-drag-behavior: done
   epic-2-retrospective: optional
 
   epic-3: done
@@ -34,7 +34,7 @@ development_status:
   3-3-compact-mobile-task-cards: done
   epic-3-retrospective: optional
 
-  epic-4: backlog
-  4-1-prepare-task-and-session-models-for-future-workflow-extensions: backlog
+  epic-4: in-progress
+  4-1-prepare-task-and-session-models-for-future-workflow-extensions: review
   4-2-prepare-ui-interaction-boundaries-for-future-shortcuts-and-advanced-actions: backlog
   epic-4-retrospective: optional

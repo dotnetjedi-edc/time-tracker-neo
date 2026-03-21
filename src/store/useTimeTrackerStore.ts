@@ -12,7 +12,18 @@ import type {
   TaskDraft,
   ViewMode,
 } from "../types";
-import { differenceInSeconds, shiftWeek, toDateKey, todayKey } from "../lib/time";
+import {
+  createActiveTaskLifecycle,
+  isTaskTrackable,
+  normalizeTask,
+  calculateTaskSessionDuration,
+} from "../lib/taskModels";
+import {
+  differenceInSeconds,
+  shiftWeek,
+  toDateKey,
+  todayKey,
+} from "../lib/time";
 
 interface TimeTrackerState {
   tasks: Task[];
@@ -93,20 +104,14 @@ const createSessionId = (sessions: TaskSession[]): number =>
 const createSegmentId = (sessions: TaskSession[]): number =>
   sessions.reduce(
     (maxId, session) =>
-      Math.max(
-        maxId,
-        ...session.segments.map((segment) => segment.id),
-      ),
+      Math.max(maxId, ...session.segments.map((segment) => segment.id)),
     0,
   ) + 1;
 
 const createAuditEventId = (sessions: TaskSession[]): number =>
   sessions.reduce(
     (maxId, session) =>
-      Math.max(
-        maxId,
-        ...session.auditEvents.map((event) => event.id),
-      ),
+      Math.max(maxId, ...session.auditEvents.map((event) => event.id)),
     0,
   ) + 1;
 
@@ -151,15 +156,12 @@ const createAuditEvent = (
   description,
 });
 
-const calculateSessionDuration = (session: TaskSession): number =>
-  session.segments.reduce((sum, segment) => sum + segment.durationSeconds, 0);
-
 const syncTaskTotals = (tasks: Task[], sessions: TaskSession[]): Task[] => {
   const totals = new Map<number, number>();
   for (const session of sessions) {
     totals.set(
       session.taskId,
-      (totals.get(session.taskId) ?? 0) + calculateSessionDuration(session),
+      (totals.get(session.taskId) ?? 0) + calculateTaskSessionDuration(session),
     );
   }
 
@@ -255,7 +257,10 @@ export const migratePersistedState = (
 
   if (state?.sessions) {
     return {
-      tasks: syncTaskTotals(state.tasks ?? [], state.sessions),
+      tasks: syncTaskTotals(
+        (state.tasks ?? []).map(normalizeTask),
+        state.sessions,
+      ),
       tags: state.tags ?? [],
       sessions: state.sessions,
       activeTimer: state.activeTimer ?? null,
@@ -302,7 +307,10 @@ export const migratePersistedState = (
     : sessions;
 
   return {
-    tasks: syncTaskTotals(state?.tasks ?? [], migratedSessions),
+    tasks: syncTaskTotals(
+      (state?.tasks ?? []).map(normalizeTask),
+      migratedSessions,
+    ),
     tags: state?.tags ?? [],
     sessions: migratedSessions,
     activeTimer,
@@ -345,6 +353,7 @@ export const useTimeTrackerStore = create<TimeTrackerState>()(
             totalTimeSeconds: 0,
             position: state.tasks.length,
             tagIds: normalized.tagIds,
+            lifecycle: createActiveTaskLifecycle(),
             createdAt: now,
             updatedAt: now,
           };
@@ -395,12 +404,16 @@ export const useTimeTrackerStore = create<TimeTrackerState>()(
               : state.resumeCandidateSessionId,
         }));
 
-        set((state) => ({ tasks: syncTaskTotals(state.tasks, state.sessions) }));
+        set((state) => ({
+          tasks: syncTaskTotals(state.tasks, state.sessions),
+        }));
       },
       setTaskOrder: (taskIds) => {
         set((state) => ({
           tasks: applyTaskOrder(
-            [...state.tasks].sort((left, right) => left.position - right.position),
+            [...state.tasks].sort(
+              (left, right) => left.position - right.position,
+            ),
             taskIds,
           ),
         }));
@@ -426,11 +439,19 @@ export const useTimeTrackerStore = create<TimeTrackerState>()(
           ordered.splice(overIndex, 0, moved);
 
           return {
-            tasks: applyTaskOrder(ordered, ordered.map((task) => task.id)),
+            tasks: applyTaskOrder(
+              ordered,
+              ordered.map((task) => task.id),
+            ),
           };
         });
       },
       startTimer: (taskId, startedAt = new Date().toISOString()) => {
+        const targetTask = get().tasks.find((task) => task.id === taskId);
+        if (!targetTask || !isTaskTrackable(targetTask)) {
+          return;
+        }
+
         const current = get().activeTimer;
         if (current?.taskId === taskId) {
           return;
@@ -601,7 +622,11 @@ export const useTimeTrackerStore = create<TimeTrackerState>()(
         }
 
         set((state) => {
-          const nextSession = createManualSession(state.sessions, taskId, normalized);
+          const nextSession = createManualSession(
+            state.sessions,
+            taskId,
+            normalized,
+          );
           const sessions = [...state.sessions, nextSession];
 
           return {
@@ -673,7 +698,9 @@ export const useTimeTrackerStore = create<TimeTrackerState>()(
         }
 
         set((state) => {
-          const sessions = state.sessions.filter((session) => session.id !== sessionId);
+          const sessions = state.sessions.filter(
+            (session) => session.id !== sessionId,
+          );
           return {
             sessions,
             tasks: syncTaskTotals(state.tasks, sessions),

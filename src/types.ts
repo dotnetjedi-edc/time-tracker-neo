@@ -7,6 +7,13 @@ export interface Tag {
   createdAt: string;
 }
 
+export type TaskLifecycleStatus = "active" | "archived";
+
+export interface TaskLifecycle {
+  status: TaskLifecycleStatus;
+  archivedAt: string | null;
+}
+
 export interface Task {
   id: number;
   name: string;
@@ -14,6 +21,7 @@ export interface Task {
   totalTimeSeconds: number;
   position: number;
   tagIds: number[];
+  lifecycle?: TaskLifecycle;
   createdAt: string;
   updatedAt: string;
 }
