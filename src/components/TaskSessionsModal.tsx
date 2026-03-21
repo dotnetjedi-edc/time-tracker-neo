@@ -104,21 +104,23 @@ export function TaskSessionsModal({
       aria-modal="true"
       aria-label={`Temps et historique pour ${task.name}`}
     >
-      <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-card">
-        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-ink/10 px-6 py-5 sm:px-8">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-ink/45">
+      <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-[2rem] bg-white shadow-card lg:max-w-5xl">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-ink/10 px-4 py-4 sm:gap-4 sm:px-6 sm:py-5 lg:px-8">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/45 sm:text-sm">
               Sessions
             </p>
-            <h2 className="mt-2 font-serif text-3xl text-ink">{task.name}</h2>
+            <h2 className="mt-1 truncate font-serif text-xl text-ink sm:mt-2 sm:text-3xl">
+              {task.name}
+            </h2>
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2 sm:gap-3">
             <button
               type="button"
               onClick={() => setView("manual")}
               className={[
-                "rounded-full px-4 py-2 text-sm font-semibold transition",
+                "rounded-full px-3 py-1.5 text-xs font-semibold transition sm:px-4 sm:py-2 sm:text-sm",
                 view === "manual"
                   ? "bg-ink text-white"
                   : "border border-ink/10 text-ink/65 hover:border-ink/30 hover:text-ink",
@@ -130,7 +132,7 @@ export function TaskSessionsModal({
               type="button"
               onClick={() => setView("history")}
               className={[
-                "rounded-full px-4 py-2 text-sm font-semibold transition",
+                "rounded-full px-3 py-1.5 text-xs font-semibold transition sm:px-4 sm:py-2 sm:text-sm",
                 view === "history"
                   ? "bg-ink text-white"
                   : "border border-ink/10 text-ink/65 hover:border-ink/30 hover:text-ink",
@@ -141,16 +143,21 @@ export function TaskSessionsModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full border border-ink/10 px-4 py-2 text-sm font-semibold text-ink/60 transition hover:border-ink/30 hover:text-ink"
+              className="rounded-full border border-ink/10 px-3 py-1.5 text-xs font-semibold text-ink/60 transition hover:border-ink/30 hover:text-ink sm:px-4 sm:py-2 sm:text-sm"
             >
               Fermer
             </button>
           </div>
         </div>
 
-        <div className="grid flex-1 gap-0 overflow-hidden lg:grid-cols-[360px_1fr]">
-          <aside className="border-b border-ink/10 bg-mist/35 p-6 lg:border-b-0 lg:border-r lg:p-8">
-            <div className="space-y-5">
+        <div className="flex flex-1 flex-col overflow-hidden lg:grid lg:grid-cols-[320px_1fr]">
+          <aside
+            className={[
+              "border-b border-ink/10 bg-mist/35 p-4 sm:p-6 lg:border-b-0 lg:border-r lg:p-8",
+              view !== "manual" ? "hidden lg:block" : "",
+            ].join(" ")}
+          >
+            <div className="space-y-4 sm:space-y-5">
               <div>
                 <h3 className="text-lg font-semibold text-ink">
                   {editingSessionId === null
@@ -231,7 +238,12 @@ export function TaskSessionsModal({
             </div>
           </aside>
 
-          <section className="overflow-y-auto p-6 sm:p-8">
+          <section
+            className={[
+              "overflow-y-auto p-4 sm:p-6 lg:p-8",
+              view !== "history" ? "hidden lg:block" : "",
+            ].join(" ")}
+          >
             <div className="mb-5 flex items-center justify-between gap-4">
               <div>
                 <h3 className="text-lg font-semibold text-ink">

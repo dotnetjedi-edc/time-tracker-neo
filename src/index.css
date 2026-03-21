@@ -19,6 +19,14 @@ body {
   min-width: 320px;
 }
 
+html.drag-scroll-lock,
+body.drag-scroll-lock {
+  overscroll-behavior: none;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 button,
 input,
 textarea {

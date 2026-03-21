@@ -47,14 +47,18 @@ describe("useTimeTrackerStore", () => {
     expect(state.activeTimer?.taskId).toBe(adminTask!.id);
     expect(state.sessions).toHaveLength(2);
     expect(state.sessions[0]?.segments[0]?.durationSeconds).toBe(1800);
-    expect(state.tasks.find((task) => task.id === clientTask!.id)?.totalTimeSeconds).toBe(1800);
+    expect(
+      state.tasks.find((task) => task.id === clientTask!.id)?.totalTimeSeconds,
+    ).toBe(1800);
 
     store.stopTimer("2026-03-20T10:00:00.000Z");
 
     state = useTimeTrackerStore.getState();
     expect(state.activeTimer).toBeNull();
     expect(state.sessions).toHaveLength(2);
-    expect(state.tasks.find((task) => task.id === adminTask!.id)?.totalTimeSeconds).toBe(1800);
+    expect(
+      state.tasks.find((task) => task.id === adminTask!.id)?.totalTimeSeconds,
+    ).toBe(1800);
   });
 
   it("merges an immediate stop and restart on the same task into a single session", () => {
@@ -91,7 +95,9 @@ describe("useTimeTrackerStore", () => {
     expect(state.activeTimer?.taskId).toBe(clientTask!.id);
     expect(state.sessions).toHaveLength(2);
     expect(state.sessions[1]?.origin).toBe("manual");
-    expect(state.tasks.find((task) => task.id === readingTask!.id)?.totalTimeSeconds).toBe(5400);
+    expect(
+      state.tasks.find((task) => task.id === readingTask!.id)?.totalTimeSeconds,
+    ).toBe(5400);
   });
 
   it("removes sessions when deleting a task", () => {
@@ -153,6 +159,10 @@ describe("useTimeTrackerStore", () => {
     const state = useTimeTrackerStore.getState();
     expect(migrated.sessions.length).toBe(2);
     expect(state.tasks[0]?.totalTimeSeconds).toBe(3600);
+    expect(state.tasks[0]?.lifecycle).toEqual({
+      status: "active",
+      archivedAt: null,
+    });
     expect(state.activeTimer).toEqual({
       taskId: 1,
       sessionId: 2,
@@ -216,6 +226,34 @@ describe("useTimeTrackerStore", () => {
     ).toBe(false);
   });
 
+  it("does not start a timer for an archived task", () => {
+    useTimeTrackerStore.setState({
+      ...useTimeTrackerStore.getState(),
+      tasks: [
+        {
+          id: 1,
+          name: "Archive",
+          comment: null,
+          totalTimeSeconds: 0,
+          position: 0,
+          tagIds: [],
+          lifecycle: {
+            status: "archived",
+            archivedAt: "2026-03-21T10:00:00.000Z",
+          },
+          createdAt: "2026-03-21T09:00:00.000Z",
+          updatedAt: "2026-03-21T10:00:00.000Z",
+        },
+      ],
+    });
+
+    useTimeTrackerStore.getState().startTimer(1, "2026-03-21T10:15:00.000Z");
+
+    const state = useTimeTrackerStore.getState();
+    expect(state.activeTimer).toBeNull();
+    expect(state.sessions).toHaveLength(0);
+  });
+
   it("reorders tasks and cleans relations when deleting a tag", () => {
     const store = useTimeTrackerStore.getState();
     store.addTag("Client", "#ff885b");
@@ -223,7 +261,11 @@ describe("useTimeTrackerStore", () => {
 
     const [clientTag, adminTag] = useTimeTrackerStore.getState().tags;
     store.addTask({ name: "Tâche A", comment: "", tagIds: [clientTag!.id] });
-    store.addTask({ name: "Tâche B", comment: "", tagIds: [clientTag!.id, adminTag!.id] });
+    store.addTask({
+      name: "Tâche B",
+      comment: "",
+      tagIds: [clientTag!.id, adminTag!.id],
+    });
 
     let state = useTimeTrackerStore.getState();
     const [taskA, taskB] = state.tasks;
@@ -238,4 +280,3 @@ describe("useTimeTrackerStore", () => {
     expect(state.selectedTagIds).toEqual([]);
   });
 });
-

@@ -275,8 +275,8 @@ describe("Time Tracker integration", () => {
 
     const taskCard = screen.getByTestId("task-card-1");
 
-    expect(taskCard.className).toContain("min-h-[196px]");
-    expect(taskCard.className).toContain("p-4");
+    expect(taskCard.className).toContain("min-h-[176px]");
+    expect(taskCard.className).toContain("p-3.5");
     expect(
       within(taskCard).getByText(
         /préparation atelier client mobile prioritaire/i,

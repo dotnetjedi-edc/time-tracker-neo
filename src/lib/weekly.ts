@@ -1,4 +1,5 @@
 import type { Tag, Task, TaskSession, WeeklyTaskSummary } from "../types";
+import { calculateTaskSessionDuration } from "./taskModels";
 import { toDateKey, weekDays } from "./time";
 
 export interface WeeklySummary {
@@ -42,10 +43,7 @@ export const summarizeWeek = (
       continue;
     }
 
-    const durationSeconds = session.segments.reduce(
-      (sum, segment) => sum + segment.durationSeconds,
-      0,
-    );
+    const durationSeconds = calculateTaskSessionDuration(session);
     if (durationSeconds === 0) {
       continue;
     }

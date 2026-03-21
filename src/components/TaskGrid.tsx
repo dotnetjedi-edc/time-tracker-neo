@@ -48,6 +48,7 @@ export function TaskGrid({
 }: TaskGridProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<number | null>(null);
   const [dragOverlayWidth, setDragOverlayWidth] = useState<number | null>(null);
+
   const [lockedToggleTaskId, setLockedToggleTaskId] = useState<number | null>(
     null,
   );
@@ -56,11 +57,13 @@ export function TaskGrid({
   );
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const releaseToggleLockTimeoutRef = useRef<number | null>(null);
+  const autoScrollFrameRef = useRef<number | null>(null);
+  const lastPointerYRef = useRef<number | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, {
-      activationConstraint: { delay: 150, tolerance: 8 },
+      activationConstraint: { delay: 0, tolerance: 5 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
@@ -98,8 +101,88 @@ export function TaskGrid({
       if (releaseToggleLockTimeoutRef.current !== null) {
         window.clearTimeout(releaseToggleLockTimeoutRef.current);
       }
+
+      if (autoScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(autoScrollFrameRef.current);
+      }
     };
   }, []);
+
+  useEffect(() => {
+    if (draggedTaskId === null) {
+      lastPointerYRef.current = null;
+      document.documentElement.classList.remove("drag-scroll-lock");
+      document.body.classList.remove("drag-scroll-lock");
+
+      if (autoScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(autoScrollFrameRef.current);
+        autoScrollFrameRef.current = null;
+      }
+
+      return;
+    }
+
+    document.documentElement.classList.add("drag-scroll-lock");
+    document.body.classList.add("drag-scroll-lock");
+
+    const updatePointerFromTouch = (event: TouchEvent) => {
+      const touch = event.touches[0] ?? event.changedTouches[0];
+      if (touch) {
+        lastPointerYRef.current = touch.clientY;
+      }
+    };
+
+    const updatePointerFromMouse = (event: PointerEvent) => {
+      lastPointerYRef.current = event.clientY;
+    };
+
+    const autoScroll = () => {
+      const pointerY = lastPointerYRef.current;
+
+      if (pointerY !== null) {
+        const edgeThreshold = 96;
+        const maxStep = 22;
+        const bottomDistance = window.innerHeight - pointerY;
+        let scrollStep = 0;
+
+        if (pointerY < edgeThreshold) {
+          scrollStep = -Math.ceil(
+            ((edgeThreshold - pointerY) / edgeThreshold) * maxStep,
+          );
+        } else if (bottomDistance < edgeThreshold) {
+          scrollStep = Math.ceil(
+            ((edgeThreshold - bottomDistance) / edgeThreshold) * maxStep,
+          );
+        }
+
+        if (scrollStep !== 0) {
+          window.scrollBy({ top: scrollStep, behavior: "auto" });
+        }
+      }
+
+      autoScrollFrameRef.current = window.requestAnimationFrame(autoScroll);
+    };
+
+    window.addEventListener("touchmove", updatePointerFromTouch, {
+      passive: true,
+    });
+    window.addEventListener("pointermove", updatePointerFromMouse, {
+      passive: true,
+    });
+    autoScrollFrameRef.current = window.requestAnimationFrame(autoScroll);
+
+    return () => {
+      document.documentElement.classList.remove("drag-scroll-lock");
+      document.body.classList.remove("drag-scroll-lock");
+      window.removeEventListener("touchmove", updatePointerFromTouch);
+      window.removeEventListener("pointermove", updatePointerFromMouse);
+
+      if (autoScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(autoScrollFrameRef.current);
+        autoScrollFrameRef.current = null;
+      }
+    };
+  }, [draggedTaskId]);
 
   const scheduleToggleUnlock = (taskId: number | null) => {
     if (releaseToggleLockTimeoutRef.current !== null) {
@@ -219,6 +302,7 @@ export function TaskGrid({
   return (
     <DndContext
       sensors={sensors}
+      autoScroll={false}
       collisionDetection={closestCenter}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
@@ -226,7 +310,7 @@ export function TaskGrid({
       onDragCancel={handleDragCancel}
     >
       <SortableContext items={orderedTaskIds} strategy={rectSortingStrategy}>
-        <section className="grid gap-4 sm:gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3 2xl:grid-cols-4">
           {orderedTasks.map((task) => (
             <TaskCard
               key={task.id}
@@ -239,13 +323,14 @@ export function TaskGrid({
               onEdit={onEditTask}
               onOpenManualTime={onOpenManualTime}
               onOpenHistory={onOpenHistory}
+              isDragInteractionActive={draggedTaskId !== null}
             />
           ))}
 
           <button
             type="button"
             onClick={onAddTask}
-            className="flex min-h-[196px] items-center justify-center rounded-[2rem] border border-dashed border-ink/20 bg-white/45 p-6 text-lg font-semibold text-ink/60 transition hover:border-ink/40 hover:bg-white/70 hover:text-ink sm:min-h-[250px] sm:p-8 sm:text-xl"
+            className="flex min-h-[176px] items-center justify-center rounded-[1.75rem] border border-dashed border-ink/20 bg-white/45 p-4 text-base font-semibold text-ink/60 transition hover:border-ink/40 hover:bg-white/70 hover:text-ink sm:min-h-[220px] sm:p-6 sm:text-lg"
           >
             + Nouvelle tâche
           </button>
@@ -270,6 +355,7 @@ export function TaskGrid({
               onEdit={onEditTask}
               onOpenManualTime={onOpenManualTime}
               onOpenHistory={onOpenHistory}
+              isDragInteractionActive
             />
           </div>
         ) : null}
