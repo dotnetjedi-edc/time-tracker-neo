@@ -1,8 +1,9 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../../App";
+import { TaskCard } from "../../components/TaskCard";
 import {
   migratePersistedState,
   useTimeTrackerStore,
@@ -309,5 +310,156 @@ describe("Time Tracker integration", () => {
     ).toBeVisible();
 
     vi.useRealTimers();
+  }, 10000);
+
+  it("keeps secondary task actions operable while the main card surface stays interactive", async () => {
+    const user = userEvent.setup();
+
+    useTimeTrackerStore.setState(
+      migratePersistedState({
+        tasks: [
+          {
+            id: 1,
+            name: "Préparation atelier",
+            comment: "Coordination client",
+            totalTimeSeconds: 0,
+            position: 0,
+            tagIds: [],
+            createdAt: "2026-03-20T09:00:00.000Z",
+            updatedAt: "2026-03-20T09:00:00.000Z",
+          },
+        ],
+        tags: [],
+        timeEntries: [],
+        activeTimer: null,
+        selectedTagIds: [],
+        currentView: "grid",
+        reportAnchor: "2026-03-20",
+      }),
+    );
+
+    render(<App />);
+
+    const taskCard = screen.getByTestId("task-card-1");
+
+    await user.click(
+      within(taskCard).getByRole("button", { name: /temps manuel/i }),
+    );
+    expect(
+      screen.getByRole("dialog", {
+        name: /temps et historique pour préparation atelier/i,
+      }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /^fermer$/i }));
+
+    await user.click(
+      within(taskCard).getByRole("button", {
+        name: /modifier préparation atelier/i,
+      }),
+    );
+    expect(
+      screen.getByRole("dialog", { name: /modifier la tâche/i }),
+    ).toBeInTheDocument();
+  }, 10000);
+
+  it("starts, switches, and stops timers from simple task-card clicks", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-20T10:00:00.000Z"));
+
+    useTimeTrackerStore.setState(
+      migratePersistedState({
+        tasks: [
+          {
+            id: 1,
+            name: "Alpha",
+            comment: "Première tâche",
+            totalTimeSeconds: 0,
+            position: 0,
+            tagIds: [],
+            createdAt: "2026-03-20T09:00:00.000Z",
+            updatedAt: "2026-03-20T09:00:00.000Z",
+          },
+          {
+            id: 2,
+            name: "Beta",
+            comment: "Deuxième tâche",
+            totalTimeSeconds: 0,
+            position: 1,
+            tagIds: [],
+            createdAt: "2026-03-20T09:05:00.000Z",
+            updatedAt: "2026-03-20T09:05:00.000Z",
+          },
+        ],
+        tags: [],
+        timeEntries: [],
+        activeTimer: null,
+        selectedTagIds: [],
+        currentView: "grid",
+        reportAnchor: "2026-03-20",
+      }),
+    );
+
+    render(<App />);
+
+    const alphaCard = screen.getByTestId("task-card-1");
+    const betaCard = screen.getByTestId("task-card-2");
+
+    fireEvent.click(alphaCard);
+    expect(within(alphaCard).getByText(/^actif$/i)).toBeVisible();
+    expect(useTimeTrackerStore.getState().activeTimer?.taskId).toBe(1);
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    fireEvent.click(betaCard);
+    expect(within(betaCard).getByText(/^actif$/i)).toBeVisible();
+    expect(within(alphaCard).getByText(/^prêt$/i)).toBeVisible();
+    expect(useTimeTrackerStore.getState().activeTimer?.taskId).toBe(2);
+    expect(useTimeTrackerStore.getState().tasks[0]?.totalTimeSeconds).toBe(2);
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    fireEvent.click(betaCard);
+    expect(useTimeTrackerStore.getState().activeTimer).toBeNull();
+    expect(within(betaCard).getByText(/^prêt$/i)).toBeVisible();
+    expect(useTimeTrackerStore.getState().tasks[1]?.totalTimeSeconds).toBe(1);
+
+    vi.useRealTimers();
+  }, 10000);
+
+  it("ignores card clicks while drag lifecycle locking is active", () => {
+    const onToggleTimer = vi.fn();
+
+    render(
+      <TaskCard
+        task={{
+          id: 1,
+          name: "Alpha",
+          comment: "Tâche active",
+          totalTimeSeconds: 0,
+          position: 0,
+          tagIds: [],
+          createdAt: "2026-03-20T09:00:00.000Z",
+          updatedAt: "2026-03-20T09:00:00.000Z",
+        }}
+        taskTags={[]}
+        isActive
+        isTimerToggleLocked
+        liveSeconds={10}
+        onToggleTimer={onToggleTimer}
+        onEdit={vi.fn()}
+        onOpenManualTime={vi.fn()}
+        onOpenHistory={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("task-card-1"));
+
+    expect(onToggleTimer).not.toHaveBeenCalled();
+    expect(screen.getByText(/^actif$/i)).toBeVisible();
   }, 10000);
 });
