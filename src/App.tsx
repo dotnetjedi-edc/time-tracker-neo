@@ -6,8 +6,12 @@ import { TaskModal } from "./components/TaskModal";
 import { TaskSessionsModal } from "./components/TaskSessionsModal";
 import { TagsModal } from "./components/TagsModal";
 import { WeeklyView } from "./components/WeeklyView";
+import { recoverPersistedSnapshot } from "./lib/persistenceStorage";
 import { differenceInSeconds, formatDateTime } from "./lib/time";
-import { useTimeTrackerStore } from "./store/useTimeTrackerStore";
+import {
+  timeTrackerStorageKey,
+  useTimeTrackerStore,
+} from "./store/useTimeTrackerStore";
 
 export default function App() {
   const tasks = useTimeTrackerStore((state) => state.tasks);
@@ -22,7 +26,9 @@ export default function App() {
   const deleteTask = useTimeTrackerStore((state) => state.deleteTask);
   const setTaskOrder = useTimeTrackerStore((state) => state.setTaskOrder);
   const toggleTimer = useTimeTrackerStore((state) => state.toggleTimer);
-  const addManualSession = useTimeTrackerStore((state) => state.addManualSession);
+  const addManualSession = useTimeTrackerStore(
+    (state) => state.addManualSession,
+  );
   const updateSession = useTimeTrackerStore((state) => state.updateSession);
   const deleteSession = useTimeTrackerStore((state) => state.deleteSession);
   const addTag = useTimeTrackerStore((state) => state.addTag);
@@ -41,12 +47,30 @@ export default function App() {
   const [sessionsModalOpen, setSessionsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [sessionTask, setSessionTask] = useState<Task | null>(null);
-  const [sessionsModalView, setSessionsModalView] = useState<"manual" | "history">("manual");
+  const [sessionsModalView, setSessionsModalView] = useState<
+    "manual" | "history"
+  >("manual");
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     const timerId = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timerId);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void recoverPersistedSnapshot(timeTrackerStorageKey).then((recovered) => {
+      if (!recovered || cancelled) {
+        return;
+      }
+
+      void useTimeTrackerStore.persist.rehydrate();
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const filteredTasks = useMemo(() => {
@@ -84,7 +108,7 @@ export default function App() {
   const activeTask = useMemo(
     () =>
       activeTimer
-        ? tasks.find((task) => task.id === activeTimer.taskId) ?? null
+        ? (tasks.find((task) => task.id === activeTimer.taskId) ?? null)
         : null,
     [activeTimer, tasks],
   );
@@ -92,7 +116,8 @@ export default function App() {
   const activeTimerSession = useMemo(
     () =>
       activeTimer
-        ? sessions.find((session) => session.id === activeTimer.sessionId) ?? null
+        ? (sessions.find((session) => session.id === activeTimer.sessionId) ??
+          null)
         : null,
     [activeTimer, sessions],
   );
@@ -153,7 +178,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,136,91,0.22),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(110,214,181,0.2),_transparent_25%),linear-gradient(180deg,_#f7f0e5_0%,_#f2f4f7_100%)] text-ink">
-      <div className="mx-auto flex min-h-screen w-full max-w-[1700px] flex-col gap-8 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1700px] flex-col gap-5 px-3 py-4 sm:gap-6 sm:px-5 sm:py-5 lg:px-8 lg:py-6">
         <Header
           currentView={currentView}
           selectedTagIds={selectedTagIds}
@@ -168,7 +193,7 @@ export default function App() {
           onStopActiveTimer={() => stopTimer(new Date().toISOString())}
         />
 
-        <main className="space-y-8">
+        <main className="space-y-6">
           {currentView === "grid" ? (
             <TaskGrid
               tasks={filteredTasks}

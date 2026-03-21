@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 import type {
   ActiveTimer,
   SessionAuditEvent,
@@ -12,6 +12,10 @@ import type {
   TaskDraft,
   ViewMode,
 } from "../types";
+import {
+  removePersistedSnapshot,
+  resilientBrowserStorage,
+} from "../lib/persistenceStorage";
 import {
   createActiveTaskLifecycle,
   isTaskTrackable,
@@ -801,6 +805,7 @@ export const useTimeTrackerStore = create<TimeTrackerState>()(
     {
       name: timeTrackerStorageKey,
       version: 2,
+      storage: createJSONStorage(() => resilientBrowserStorage),
       migrate: (persistedState) => migratePersistedState(persistedState),
     },
   ),
@@ -809,4 +814,5 @@ export const useTimeTrackerStore = create<TimeTrackerState>()(
 export const resetTimeTrackerStore = (): void => {
   useTimeTrackerStore.setState(createInitialTimeTrackerData());
   window.localStorage.removeItem(timeTrackerStorageKey);
+  void removePersistedSnapshot(timeTrackerStorageKey);
 };
