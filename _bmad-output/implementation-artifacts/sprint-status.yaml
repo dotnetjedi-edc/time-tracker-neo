@@ -1,24 +1,24 @@
 # Sprint status generated from _bmad-output/planning-artifacts/epics.md
 # generated: 2026-03-20 23:50
-# last_updated: 2026-03-20 23:50
+# last_updated: 2026-03-21 (refreshed by SM)
 # project: time-tracker3
 # project_key: TT3
 # tracking_system: file-system
 # story_location: _bmad-output/implementation-artifacts
 
 generated: 2026-03-20 23:50
-last_updated: 2026-03-20 23:50
+last_updated: 2026-03-21
 project: time-tracker3
 project_key: TT3
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
 
 development_status:
-  epic-1: backlog
-  1-1-persist-active-timer-across-refresh-and-reopen: backlog
-  1-2-show-recovered-active-timer-status: backlog
-  1-3-stop-a-recovered-timer-manually: backlog
-  1-4-add-regression-coverage-for-timer-recovery: backlog
+  epic-1: done
+  1-1-persist-active-timer-across-refresh-and-reopen: done
+  1-2-show-recovered-active-timer-status: done
+  1-3-stop-a-recovered-timer-manually: done
+  1-4-add-regression-coverage-for-timer-recovery: done
   epic-1-retrospective: optional
 
   epic-2: backlog
@@ -28,10 +28,10 @@ development_status:
   2-4-add-regression-coverage-for-card-click-and-drag-behavior: backlog
   epic-2-retrospective: optional
 
-  epic-3: in-progress
+  epic-3: done
   3-1-reduce-header-vertical-footprint: done
   3-2-preserve-compact-header-actions-and-filters: done
-  3-3-compact-mobile-task-cards: review
+  3-3-compact-mobile-task-cards: done
   epic-3-retrospective: optional
 
   epic-4: backlog
