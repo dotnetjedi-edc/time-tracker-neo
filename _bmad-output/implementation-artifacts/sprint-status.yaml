@@ -21,11 +21,11 @@ development_status:
   1-4-add-regression-coverage-for-timer-recovery: done
   epic-1-retrospective: optional
 
-  epic-2: done
-  2-1-drag-tasks-from-the-card-surface: done
-  2-2-toggle-timer-with-a-simple-card-click-or-tap: done
-  2-3-prevent-accidental-timer-toggles-during-reordering: done
-  2-4-add-regression-coverage-for-card-click-and-drag-behavior: done
+  epic-2: backlog
+  2-1-drag-tasks-from-the-card-surface: backlog
+  2-2-toggle-timer-with-a-simple-card-click-or-tap: backlog
+  2-3-prevent-accidental-timer-toggles-during-reordering: backlog
+  2-4-add-regression-coverage-for-card-click-and-drag-behavior: backlog
   epic-2-retrospective: optional
 
   epic-3: done

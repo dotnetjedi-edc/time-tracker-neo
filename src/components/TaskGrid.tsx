@@ -48,6 +48,7 @@ export function TaskGrid({
 }: TaskGridProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<number | null>(null);
   const [dragOverlayWidth, setDragOverlayWidth] = useState<number | null>(null);
+
   const [lockedToggleTaskId, setLockedToggleTaskId] = useState<number | null>(
     null,
   );

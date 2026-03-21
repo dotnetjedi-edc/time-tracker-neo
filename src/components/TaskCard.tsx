@@ -1,6 +1,10 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { ComponentPropsWithoutRef } from "react";
+import type {
+  ComponentPropsWithoutRef,
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+} from "react";
 import { useEffect, useRef } from "react";
 import {
   Clock3,
@@ -29,9 +33,12 @@ interface TaskCardProps {
 
 interface TaskCardSurfaceProps extends TaskCardProps {
   dragHandleProps?: ComponentPropsWithoutRef<"button">;
-  dragSurfaceProps?: Pick<ComponentPropsWithoutRef<"article">, "onClick">;
   isDragging?: boolean;
   isOverlay?: boolean;
+  onPointerCancel?: (event: ReactPointerEvent<HTMLElement>) => void;
+  onPointerDown?: (event: ReactPointerEvent<HTMLElement>) => void;
+  onPointerMove?: (event: ReactPointerEvent<HTMLElement>) => void;
+  onPointerUp?: (event: ReactPointerEvent<HTMLElement>) => void;
   setNodeRef?: (node: HTMLElement | null) => void;
 }
 
@@ -45,18 +52,39 @@ function TaskCardSurface({
   onEdit,
   onOpenManualTime,
   onOpenHistory,
+  onPointerCancel,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
   dragHandleProps,
-  dragSurfaceProps,
   isDragging = false,
   isOverlay = false,
   setNodeRef,
   isDragInteractionActive = false,
 }: TaskCardSurfaceProps) {
+  const handleCardClick = (event: ReactMouseEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement;
+
+    if (target.closest("[data-card-control]")) {
+      return;
+    }
+
+    if (isDragging || isTimerToggleLocked || isDragInteractionActive) {
+      return;
+    }
+
+    onToggleTimer(task.id);
+  };
+
   return (
     <article
       ref={setNodeRef}
       data-testid={isOverlay ? undefined : `task-card-${task.id}`}
-      {...dragSurfaceProps}
+      onClick={handleCardClick}
+      onPointerCancel={onPointerCancel}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
       className={[
         "group relative flex min-h-[176px] flex-col overflow-hidden rounded-[1.75rem] border p-3.5 shadow-card transition-[transform,opacity,box-shadow,border-color] duration-200 ease-out sm:min-h-[220px] sm:p-5",
         isActive
@@ -64,9 +92,8 @@ function TaskCardSurface({
           : "border-white/70 bg-white/80 hover:-translate-y-1 hover:border-ink/10",
         isDragging && !isOverlay ? "opacity-0" : "opacity-100",
         isOverlay
-          ? "z-30 rotate-1 shadow-2xl ring-2 ring-coral/40 cursor-grabbing"
+          ? "z-30 rotate-1 shadow-2xl ring-1 ring-ink/10 cursor-grabbing"
           : "",
-        isDragInteractionActive ? "select-none touch-none" : "",
         "transform-gpu",
       ].join(" ")}
     >
@@ -74,15 +101,9 @@ function TaskCardSurface({
       <div className="flex items-start justify-between gap-3 sm:gap-4">
         <button
           type="button"
-          className={[
-            "inline-flex h-9 w-9 items-center justify-center rounded-full border text-ink/55 transition sm:h-10 sm:w-10",
-            isDragging && isOverlay
-              ? "scale-110 border-coral/60 bg-coral/15 text-ink shadow-md ring-2 ring-coral/30"
-              : isDragInteractionActive
-                ? "border-ink/25 bg-white/90 text-ink"
-                : "border-ink/10 bg-white/80 hover:border-ink/30 hover:text-ink",
-          ].join(" ")}
-          aria-label={`Maintenir pour réorganiser ${task.name}`}
+          data-card-control="drag-handle"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-ink/10 bg-white/80 text-ink/55 transition hover:border-ink/30 hover:text-ink"
+          aria-label={`Réorganiser ${task.name}`}
           tabIndex={isDragging && !isOverlay ? -1 : undefined}
           {...dragHandleProps}
         >
@@ -110,7 +131,7 @@ function TaskCardSurface({
         type="button"
         disabled={isDragging && !isOverlay}
         aria-label={`Basculer le chrono pour ${task.name}`}
-        className="mt-2.5 flex w-full flex-1 flex-col items-start justify-between text-left disabled:pointer-events-none sm:mt-3"
+        className="mt-3 flex w-full flex-1 flex-col items-start justify-between text-left disabled:pointer-events-none sm:mt-4"
       >
         <div className="min-w-0 space-y-2 sm:space-y-3">
           <div className="flex items-center gap-2">
@@ -220,6 +241,8 @@ export function TaskCard({
     id: task.id,
   });
   const articleRef = useRef<HTMLElement | null>(null);
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+  const suppressClickRef = useRef(false);
 
   useEffect(() => {
     if (!articleRef.current) {
@@ -236,20 +259,41 @@ export function TaskCard({
     setNodeRef(node);
   };
 
-  const handleSurfaceClick: NonNullable<
-    ComponentPropsWithoutRef<"article">["onClick"]
-  > = (event) => {
-    const target = event.target as HTMLElement;
+  const handlePointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+    pointerStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+    suppressClickRef.current = false;
+  };
 
-    if (target.closest('[data-card-control="secondary"]')) {
+  const handlePointerMove = (event: ReactPointerEvent<HTMLElement>) => {
+    if (!pointerStartRef.current) {
       return;
     }
 
-    if (isTimerToggleLocked) {
+    const deltaX = Math.abs(event.clientX - pointerStartRef.current.x);
+    const deltaY = Math.abs(event.clientY - pointerStartRef.current.y);
+
+    if (deltaX > 6 || deltaY > 6) {
+      suppressClickRef.current = true;
+    }
+  };
+
+  const handlePointerEnd = () => {
+    pointerStartRef.current = null;
+
+    window.setTimeout(() => {
+      suppressClickRef.current = false;
+    }, 0);
+  };
+
+  const handleToggleTimer = (taskId: number) => {
+    if (suppressClickRef.current) {
       return;
     }
 
-    onToggleTimer(task.id);
+    onToggleTimer(taskId);
   };
 
   return (
@@ -259,23 +303,22 @@ export function TaskCard({
       isActive={isActive}
       isTimerToggleLocked={isTimerToggleLocked}
       liveSeconds={liveSeconds}
-      onToggleTimer={onToggleTimer}
+      onToggleTimer={handleToggleTimer}
       onEdit={onEdit}
       onOpenManualTime={onOpenManualTime}
       onOpenHistory={onOpenHistory}
       isDragInteractionActive={isDragInteractionActive}
       dragHandleProps={{ ...attributes, ...listeners }}
-      dragSurfaceProps={{
-        onClick: handleSurfaceClick,
-      }}
       isDragging={isDragging}
       setNodeRef={handleSetNodeRef}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerEnd}
+      onPointerCancel={handlePointerEnd}
     />
   );
 }
 
 export function TaskCardOverlay(props: TaskCardProps) {
-  return (
-    <TaskCardSurface {...props} isDragging isOverlay isDragInteractionActive />
-  );
+  return <TaskCardSurface {...props} isOverlay />;
 }
