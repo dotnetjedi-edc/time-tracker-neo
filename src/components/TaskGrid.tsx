@@ -48,10 +48,14 @@ export function TaskGrid({
 }: TaskGridProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<number | null>(null);
   const [dragOverlayWidth, setDragOverlayWidth] = useState<number | null>(null);
+  const [lockedToggleTaskId, setLockedToggleTaskId] = useState<number | null>(
+    null,
+  );
   const [orderedTaskIds, setOrderedTaskIds] = useState<number[]>(() =>
     tasks.map((task) => task.id),
   );
   const overlayRef = useRef<HTMLDivElement | null>(null);
+  const releaseToggleLockTimeoutRef = useRef<number | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -89,10 +93,43 @@ export function TaskGrid({
       : "";
   }, [dragOverlayWidth]);
 
+  useEffect(() => {
+    return () => {
+      if (releaseToggleLockTimeoutRef.current !== null) {
+        window.clearTimeout(releaseToggleLockTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const scheduleToggleUnlock = (taskId: number | null) => {
+    if (releaseToggleLockTimeoutRef.current !== null) {
+      window.clearTimeout(releaseToggleLockTimeoutRef.current);
+    }
+
+    if (taskId === null) {
+      setLockedToggleTaskId(null);
+      return;
+    }
+
+    setLockedToggleTaskId(taskId);
+    releaseToggleLockTimeoutRef.current = window.setTimeout(() => {
+      setLockedToggleTaskId(null);
+      releaseToggleLockTimeoutRef.current = null;
+    }, 0);
+  };
+
   const handleDragStart = (event: DragStartEvent) => {
-    setDraggedTaskId(Number(event.active.id));
+    const activeId = Number(event.active.id);
+
+    if (releaseToggleLockTimeoutRef.current !== null) {
+      window.clearTimeout(releaseToggleLockTimeoutRef.current);
+      releaseToggleLockTimeoutRef.current = null;
+    }
+
+    setDraggedTaskId(activeId);
     setDragOverlayWidth(event.active.rect.current.initial?.width ?? null);
     setOrderedTaskIds(tasks.map((task) => task.id));
+    setLockedToggleTaskId(activeId);
   };
 
   const handleDragOver = (event: DragOverEvent) => {
@@ -120,12 +157,14 @@ export function TaskGrid({
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
+    const releasedTaskId = Number(event.active.id);
     const initialTaskIds = tasks.map((task) => task.id);
 
     if (!event.over) {
       setDraggedTaskId(null);
       setDragOverlayWidth(null);
       setOrderedTaskIds(initialTaskIds);
+      scheduleToggleUnlock(releasedTaskId);
       return;
     }
 
@@ -141,12 +180,16 @@ export function TaskGrid({
     setDraggedTaskId(null);
     setDragOverlayWidth(null);
     setOrderedTaskIds(finalTaskIds);
+    scheduleToggleUnlock(releasedTaskId);
   };
 
   const handleDragCancel = () => {
+    const releasedTaskId = draggedTaskId;
+
     setDraggedTaskId(null);
     setDragOverlayWidth(null);
     setOrderedTaskIds(tasks.map((task) => task.id));
+    scheduleToggleUnlock(releasedTaskId);
   };
 
   if (tasks.length === 0) {
@@ -190,6 +233,7 @@ export function TaskGrid({
               task={task}
               taskTags={tags.filter((tag) => task.tagIds.includes(tag.id))}
               isActive={activeTaskId === task.id}
+              isTimerToggleLocked={lockedToggleTaskId === task.id}
               liveSeconds={liveTotals[task.id] ?? task.totalTimeSeconds}
               onToggleTimer={onToggleTimer}
               onEdit={onEditTask}

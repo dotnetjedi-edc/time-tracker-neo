@@ -23,10 +23,21 @@ interface TaskCardProps {
   onEdit: (task: Task) => void;
   onOpenManualTime: (task: Task) => void;
   onOpenHistory: (task: Task) => void;
+  isTimerToggleLocked?: boolean;
 }
 
 interface TaskCardSurfaceProps extends TaskCardProps {
   dragHandleProps?: ComponentPropsWithoutRef<"button">;
+  dragSurfaceProps?: Pick<
+    ComponentPropsWithoutRef<"article">,
+    | "onClick"
+    | "onPointerDown"
+    | "onPointerMove"
+    | "onPointerUp"
+    | "onTouchEnd"
+    | "onTouchStart"
+    | "onTouchMove"
+  >;
   isDragging?: boolean;
   isOverlay?: boolean;
   setNodeRef?: (node: HTMLElement | null) => void;
@@ -36,12 +47,14 @@ function TaskCardSurface({
   task,
   taskTags,
   isActive,
+  isTimerToggleLocked = false,
   liveSeconds,
   onToggleTimer,
   onEdit,
   onOpenManualTime,
   onOpenHistory,
   dragHandleProps,
+  dragSurfaceProps,
   isDragging = false,
   isOverlay = false,
   setNodeRef,
@@ -49,7 +62,8 @@ function TaskCardSurface({
   return (
     <article
       ref={setNodeRef}
-      data-testid={`task-card-${task.id}`}
+      data-testid={isOverlay ? undefined : `task-card-${task.id}`}
+      {...dragSurfaceProps}
       className={[
         "group relative flex min-h-[196px] flex-col overflow-hidden rounded-[2rem] border p-4 shadow-card transition-[transform,opacity,box-shadow,border-color] duration-200 ease-out sm:min-h-[250px] sm:p-6",
         isActive
@@ -58,7 +72,7 @@ function TaskCardSurface({
         isDragging && !isOverlay ? "opacity-0" : "opacity-100",
         isOverlay
           ? "z-30 rotate-1 shadow-2xl ring-1 ring-ink/10 cursor-grabbing"
-          : "",
+          : "cursor-move active:cursor-grabbing",
         "transform-gpu",
       ].join(" ")}
     >
@@ -66,7 +80,7 @@ function TaskCardSurface({
       <div className="flex items-start justify-between gap-3 sm:gap-4">
         <button
           type="button"
-          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-ink/10 bg-white/80 text-ink/55 transition hover:border-ink/30 hover:text-ink"
+          className="inline-flex h-10 w-10 cursor-move items-center justify-center rounded-full border border-ink/10 bg-white/80 text-ink/55 transition hover:border-ink/30 hover:text-ink active:cursor-grabbing"
           aria-label={`Réorganiser ${task.name}`}
           tabIndex={isDragging && !isOverlay ? -1 : undefined}
           {...dragHandleProps}
@@ -76,7 +90,13 @@ function TaskCardSurface({
 
         <button
           type="button"
-          onClick={() => onEdit(task)}
+          onClick={(event) => {
+            event.stopPropagation();
+            onEdit(task);
+          }}
+          data-card-control="secondary"
+          onPointerDown={(event) => event.stopPropagation()}
+          onTouchStart={(event) => event.stopPropagation()}
           disabled={isDragging && !isOverlay}
           className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-ink/10 bg-white/80 text-ink/55 transition hover:border-ink/30 hover:text-ink disabled:pointer-events-none"
           aria-label={`Modifier ${task.name}`}
@@ -87,10 +107,9 @@ function TaskCardSurface({
 
       <button
         type="button"
-        onClick={() => onToggleTimer(task.id)}
         disabled={isDragging && !isOverlay}
         aria-label={`Basculer le chrono pour ${task.name}`}
-        className="mt-3 flex w-full flex-1 flex-col items-start justify-between text-left disabled:pointer-events-none sm:mt-4"
+        className="mt-3 flex w-full flex-1 cursor-move flex-col items-start justify-between text-left active:cursor-grabbing disabled:pointer-events-none sm:mt-4"
       >
         <div className="min-w-0 space-y-2.5 sm:space-y-3">
           <div className="flex items-center gap-2">
@@ -144,7 +163,13 @@ function TaskCardSurface({
       <div className="mt-3 flex flex-wrap gap-2 sm:mt-4 sm:gap-3">
         <button
           type="button"
-          onClick={() => onOpenManualTime(task)}
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpenManualTime(task);
+          }}
+          data-card-control="secondary"
+          onPointerDown={(event) => event.stopPropagation()}
+          onTouchStart={(event) => event.stopPropagation()}
           disabled={isDragging && !isOverlay}
           className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-full border border-ink/10 bg-white/85 px-3 py-2 text-[13px] font-semibold text-ink/65 transition hover:border-ink/30 hover:text-ink disabled:pointer-events-none sm:px-4 sm:text-sm"
         >
@@ -153,7 +178,13 @@ function TaskCardSurface({
         </button>
         <button
           type="button"
-          onClick={() => onOpenHistory(task)}
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpenHistory(task);
+          }}
+          data-card-control="secondary"
+          onPointerDown={(event) => event.stopPropagation()}
+          onTouchStart={(event) => event.stopPropagation()}
           disabled={isDragging && !isOverlay}
           className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-full border border-ink/10 bg-white/85 px-3 py-2 text-[13px] font-semibold text-ink/65 transition hover:border-ink/30 hover:text-ink disabled:pointer-events-none sm:px-4 sm:text-sm"
         >
@@ -174,6 +205,7 @@ export function TaskCard({
   onEdit,
   onOpenManualTime,
   onOpenHistory,
+  isTimerToggleLocked = false,
 }: TaskCardProps) {
   const {
     attributes,
@@ -186,6 +218,8 @@ export function TaskCard({
     id: task.id,
   });
   const articleRef = useRef<HTMLElement | null>(null);
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+  const suppressClickRef = useRef(false);
 
   useEffect(() => {
     if (!articleRef.current) {
@@ -202,17 +236,119 @@ export function TaskCard({
     setNodeRef(node);
   };
 
+  const markDragIntent = (clientX: number, clientY: number) => {
+    if (!pointerStartRef.current) {
+      return;
+    }
+
+    const movedEnough =
+      Math.abs(clientX - pointerStartRef.current.x) >= 8 ||
+      Math.abs(clientY - pointerStartRef.current.y) >= 8;
+
+    if (movedEnough) {
+      suppressClickRef.current = true;
+    }
+  };
+
+  const handleSurfaceClick: NonNullable<
+    ComponentPropsWithoutRef<"article">["onClick"]
+  > = (event) => {
+    const target = event.target as HTMLElement;
+
+    if (target.closest('[data-card-control="secondary"]')) {
+      return;
+    }
+
+    if (isTimerToggleLocked) {
+      suppressClickRef.current = false;
+      pointerStartRef.current = null;
+      return;
+    }
+
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      pointerStartRef.current = null;
+      return;
+    }
+
+    pointerStartRef.current = null;
+    onToggleTimer(task.id);
+  };
+
+  const handleSurfacePointerDown: NonNullable<
+    ComponentPropsWithoutRef<"article">["onPointerDown"]
+  > = (event) => {
+    pointerStartRef.current = { x: event.clientX, y: event.clientY };
+    suppressClickRef.current = false;
+    listeners?.onPointerDown?.(event);
+  };
+
+  const handleSurfacePointerMove: NonNullable<
+    ComponentPropsWithoutRef<"article">["onPointerMove"]
+  > = (event) => {
+    markDragIntent(event.clientX, event.clientY);
+  };
+
+  const handleSurfacePointerUp: NonNullable<
+    ComponentPropsWithoutRef<"article">["onPointerUp"]
+  > = (event) => {
+    markDragIntent(event.clientX, event.clientY);
+  };
+
+  const handleSurfaceTouchStart: NonNullable<
+    ComponentPropsWithoutRef<"article">["onTouchStart"]
+  > = (event) => {
+    const touch = event.touches[0];
+
+    if (touch) {
+      pointerStartRef.current = { x: touch.clientX, y: touch.clientY };
+      suppressClickRef.current = false;
+    }
+
+    listeners?.onTouchStart?.(event);
+  };
+
+  const handleSurfaceTouchMove: NonNullable<
+    ComponentPropsWithoutRef<"article">["onTouchMove"]
+  > = (event) => {
+    const touch = event.touches[0];
+
+    if (touch) {
+      markDragIntent(touch.clientX, touch.clientY);
+    }
+  };
+
+  const handleSurfaceTouchEnd: NonNullable<
+    ComponentPropsWithoutRef<"article">["onTouchEnd"]
+  > = (event) => {
+    const touch = event.changedTouches[0];
+
+    if (touch) {
+      markDragIntent(touch.clientX, touch.clientY);
+    }
+  };
+
   return (
     <TaskCardSurface
       task={task}
       taskTags={taskTags}
       isActive={isActive}
+      isTimerToggleLocked={isTimerToggleLocked}
       liveSeconds={liveSeconds}
       onToggleTimer={onToggleTimer}
       onEdit={onEdit}
       onOpenManualTime={onOpenManualTime}
       onOpenHistory={onOpenHistory}
       dragHandleProps={{ ...attributes, ...listeners }}
+      dragSurfaceProps={{
+        onClick: handleSurfaceClick,
+        onPointerDown: handleSurfacePointerDown,
+        onPointerMove: handleSurfacePointerMove,
+        onPointerUp: handleSurfacePointerUp,
+        onTouchEnd: handleSurfaceTouchEnd,
+        onTouchStart: handleSurfaceTouchStart,
+        onTouchMove: handleSurfaceTouchMove,
+      }}
       isDragging={isDragging}
       setNodeRef={handleSetNodeRef}
     />
@@ -220,5 +356,5 @@ export function TaskCard({
 }
 
 export function TaskCardOverlay(props: TaskCardProps) {
-  return <TaskCardSurface {...props} isOverlay />;
+  return <TaskCardSurface {...props} isDragging isOverlay />;
 }

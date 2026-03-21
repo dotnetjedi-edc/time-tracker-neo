@@ -24,13 +24,11 @@ test("creates a tag and a task, runs the timer and exposes weekly totals", async
 
   await expect(page.getByText("Session client")).toBeVisible();
 
-  await page
-    .getByRole("button", { name: /basculer le chrono pour session client/i })
-    .click({ force: true });
+  const sessionClientCard = page.getByTestId("task-card-1");
+
+  await sessionClientCard.click({ position: { x: 80, y: 72 }, force: true });
   await page.waitForTimeout(2100);
-  await page
-    .getByRole("button", { name: /basculer le chrono pour session client/i })
-    .click({ force: true });
+  await sessionClientCard.click({ position: { x: 80, y: 72 }, force: true });
 
   await expect(page.getByText("00:00:02")).toBeVisible();
 
@@ -125,21 +123,15 @@ test("reorders task cards with drag and drop", async ({ page }) => {
 
   const firstCard = page.getByTestId("task-card-1");
   const secondCard = page.getByTestId("task-card-2");
-  const secondHandle = secondCard.getByRole("button", {
-    name: /réorganiser beta/i,
-  });
 
   const firstCardBox = await firstCard.boundingBox();
-  const secondHandleBox = await secondHandle.boundingBox();
+  const secondCardBox = await secondCard.boundingBox();
 
-  if (!firstCardBox || !secondHandleBox) {
+  if (!firstCardBox || !secondCardBox) {
     throw new Error("Unable to locate task cards for drag and drop test.");
   }
 
-  await page.mouse.move(
-    secondHandleBox.x + secondHandleBox.width / 2,
-    secondHandleBox.y + secondHandleBox.height / 2,
-  );
+  await page.mouse.move(secondCardBox.x + 28, secondCardBox.y + 28);
   await page.mouse.down();
   await page.mouse.move(
     firstCardBox.x + firstCardBox.width / 2,
@@ -154,6 +146,101 @@ test("reorders task cards with drag and drop", async ({ page }) => {
   await expect(
     page.locator('[data-testid^="task-card-"] h3').nth(1),
   ).toHaveText("Alpha");
+});
+
+test("does not start a timer when dragging an inactive task card", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: /nouvelle tâche/i }).click();
+  let taskDialog = page.getByRole("dialog", { name: /nouvelle tâche/i });
+  await taskDialog.getByLabel("Nom de la tâche").fill("Alpha");
+  await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
+
+  await page.getByRole("button", { name: /nouvelle tâche/i }).click();
+  taskDialog = page.getByRole("dialog", { name: /nouvelle tâche/i });
+  await taskDialog.getByLabel("Nom de la tâche").fill("Beta");
+  await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
+
+  const firstCard = page.getByTestId("task-card-1");
+  const secondCard = page.getByTestId("task-card-2");
+
+  const firstCardBox = await firstCard.boundingBox();
+  const secondCardBox = await secondCard.boundingBox();
+
+  if (!firstCardBox || !secondCardBox) {
+    throw new Error("Unable to locate task cards for drag-no-toggle test.");
+  }
+
+  // Drag Alpha (first card) down to Beta's position — no timer should start
+  await page.mouse.move(firstCardBox.x + 28, firstCardBox.y + 28);
+  await page.mouse.down();
+  await page.mouse.move(
+    secondCardBox.x + secondCardBox.width / 2,
+    secondCardBox.y + secondCardBox.height / 2,
+    { steps: 20 },
+  );
+  await page.mouse.up();
+
+  // No active timer banner should appear in the header
+  await expect(page.getByText(/^chrono actif$/i)).toHaveCount(0);
+
+  // Neither card should show an active badge
+  await expect(
+    firstCard.getByRole("button", { name: /basculer le chrono pour alpha/i }),
+  ).toContainText(/prêt/i);
+  await expect(
+    secondCard.getByRole("button", { name: /basculer le chrono pour beta/i }),
+  ).toContainText(/prêt/i);
+});
+
+test("keeps the active timer running when the active card is reordered", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: /nouvelle tâche/i }).click();
+  let taskDialog = page.getByRole("dialog", { name: /nouvelle tâche/i });
+  await taskDialog.getByLabel("Nom de la tâche").fill("Alpha");
+  await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
+
+  await page.getByRole("button", { name: /nouvelle tâche/i }).click();
+  taskDialog = page.getByRole("dialog", { name: /nouvelle tâche/i });
+  await taskDialog.getByLabel("Nom de la tâche").fill("Beta");
+  await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
+
+  const alphaCard = page.getByTestId("task-card-1");
+  const betaCard = page.getByTestId("task-card-2");
+
+  await alphaCard.click({ position: { x: 80, y: 72 }, force: true });
+  await page.waitForTimeout(1100);
+
+  const alphaCardBox = await alphaCard.boundingBox();
+  const betaCardBox = await betaCard.boundingBox();
+
+  if (!alphaCardBox || !betaCardBox) {
+    throw new Error("Unable to locate task cards for active drag test.");
+  }
+
+  await page.mouse.move(alphaCardBox.x + 28, alphaCardBox.y + 28);
+  await page.mouse.down();
+  await page.mouse.move(
+    betaCardBox.x + betaCardBox.width / 2,
+    betaCardBox.y + betaCardBox.height / 2,
+    { steps: 20 },
+  );
+  await page.mouse.up();
+
+  await expect(
+    page.locator('[data-testid^="task-card-"] h3').first(),
+  ).toHaveText("Beta");
+  await expect(
+    page.locator('[data-testid^="task-card-"] h3').nth(1),
+  ).toHaveText("Alpha");
+  await expect(page.getByRole("banner").getByText("Alpha")).toBeVisible();
+  await expect(
+    alphaCard.getByRole("button", { name: /basculer le chrono pour alpha/i }),
+  ).toContainText(/actif/i);
+  await expect(
+    betaCard.getByRole("button", { name: /basculer le chrono pour beta/i }),
+  ).toContainText(/prêt/i);
 });
 
 test.describe("compact header on mobile", () => {
