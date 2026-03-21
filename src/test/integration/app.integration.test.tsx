@@ -152,11 +152,10 @@ describe("Time Tracker integration", () => {
 
     render(<App />);
 
+    expect(screen.getByText(/^chrono actif$/i)).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", {
-        name: /suivi compact, actions directes/i,
-      }),
-    ).toBeInTheDocument();
+      within(screen.getByRole("banner")).getByText(/session client/i),
+    ).toBeVisible();
     expect(
       screen.getByRole("button", { name: /vue calendrier/i }),
     ).toBeVisible();

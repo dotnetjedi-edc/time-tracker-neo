@@ -46,63 +46,38 @@ export function Header({
   return (
     <header className="rounded-[1.5rem] border border-white/60 bg-white/75 px-3 py-3 shadow-card backdrop-blur sm:px-4 sm:py-4">
       <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)] lg:items-center">
-          <div className="min-w-0 space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.26em] text-ink/45">
-                Workspace temps
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-ink/10 bg-white/80 px-2.5 py-1 text-[11px] font-semibold text-ink/55">
-                {currentView === "grid" ? (
-                  <LayoutGrid size={12} />
-                ) : (
-                  <CalendarRange size={12} />
-                )}
-                {currentView === "grid" ? "Mode grille" : "Mode calendrier"}
-              </span>
-            </div>
-            <div className="flex flex-wrap items-baseline gap-2">
-              <h1 className="font-serif text-[1.7rem] leading-none text-ink sm:text-[2rem]">
-                Suivi compact, actions directes
-              </h1>
-              <p className="text-sm text-ink/60 sm:text-[15px]">
-                Actions directes, sans bandeau envahissant.
+        <div className="min-h-[78px] overflow-hidden rounded-[1.25rem] border border-mint/35 bg-gradient-to-r from-mint/25 via-white/90 to-gold/20 px-3 py-2.5">
+          <div className="flex h-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="inline-flex items-center gap-2 rounded-full bg-ink px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white">
+                <Square size={10} />
+                {activeTimer ? "Chrono actif" : "Chrono inactif"}
+              </div>
+              <p className="mt-1 truncate text-sm font-semibold text-ink sm:mt-2 sm:text-base">
+                {activeLabel}
               </p>
+              <p className="truncate text-xs text-ink/60">{activeContext}</p>
             </div>
-          </div>
 
-          <div className="min-h-[78px] overflow-hidden rounded-[1.25rem] border border-mint/35 bg-gradient-to-r from-mint/25 via-white/90 to-gold/20 px-3 py-2.5">
-            <div className="flex h-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="inline-flex items-center gap-2 rounded-full bg-ink px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white">
-                  <Square size={10} />
-                  {activeTimer ? "Chrono actif" : "Chrono inactif"}
-                </div>
-                <p className="mt-1 truncate text-sm font-semibold text-ink sm:mt-2 sm:text-base">
-                  {activeLabel}
-                </p>
-                <p className="truncate text-xs text-ink/60">{activeContext}</p>
-              </div>
-
-              <div className="flex shrink-0 items-center gap-2 sm:flex-col sm:items-end sm:gap-1.5">
-                <p className="font-mono text-lg font-semibold tracking-tight text-ink sm:text-2xl">
-                  {activeTimer
-                    ? formatClock(activeTimer.elapsedSeconds)
-                    : "--:--:--"}
-                </p>
-                <button
-                  type="button"
-                  onClick={onStopActiveTimer}
-                  disabled={!activeTimer}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-ink px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-ink/90 disabled:cursor-not-allowed disabled:bg-ink/25 sm:py-2"
-                >
-                  <Square size={14} />
-                  <span className="hidden sm:inline">
-                    Arrêter le chrono actif
-                  </span>
-                  <span className="sm:hidden">Stop</span>
-                </button>
-              </div>
+            <div className="flex shrink-0 items-center gap-2 sm:flex-col sm:items-end sm:gap-1.5">
+              <p className="font-mono text-lg font-semibold tracking-tight text-ink sm:text-2xl">
+                {activeTimer
+                  ? formatClock(activeTimer.elapsedSeconds)
+                  : "--:--:--"}
+              </p>
+              <button
+                type="button"
+                onClick={onStopActiveTimer}
+                disabled={!activeTimer}
+                aria-label="Arrêter le chrono actif"
+                className="inline-flex items-center gap-1.5 rounded-full bg-ink px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-ink/90 disabled:cursor-not-allowed disabled:bg-ink/25 sm:py-2"
+              >
+                <Square size={14} />
+                <span className="hidden sm:inline">
+                  Arrêter le chrono actif
+                </span>
+                <span className="sm:hidden">Stop</span>
+              </button>
             </div>
           </div>
         </div>
