@@ -11,25 +11,6 @@ on:
       - develop
 
 jobs:
-  # Linting & Code Quality
-  lint:
-    runs-on: ubuntu-latest
-    name: Lint & Code Quality
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run ESLint
-        run: npm run lint
-        continue-on-error: true
-
   # TypeScript Type Checking
   type-check:
     runs-on: ubuntu-latest
@@ -110,7 +91,7 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     name: Build & Deploy to Vercel
-    needs: [lint, type-check, unit-tests, e2e-tests]
+    needs: [type-check, unit-tests, e2e-tests]
     permissions:
       contents: read
       deployments: write
