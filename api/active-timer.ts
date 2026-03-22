@@ -63,6 +63,18 @@ export default createRequestHandler(
         return sendError(res, 400, "session_id must belong to task_id");
       }
 
+      if (session.ended_at !== null) {
+        return sendError(res, 400, "Session already ended");
+      }
+
+      if (String(session.started_at) > String(validated.segment_start_time)) {
+        return sendError(
+          res,
+          400,
+          "segment_start_time must be greater than or equal to session.started_at",
+        );
+      }
+
       const db = getDb();
       const now = new Date().toISOString();
 
@@ -73,9 +85,9 @@ export default createRequestHandler(
          VALUES (?, ?, ?, ?, ?)`,
         [
           userId,
-          validated.task_id,
-          validated.session_id,
-          validated.segment_start_time,
+          validated.task_id as string,
+          validated.session_id as string,
+          validated.segment_start_time as string,
           now,
         ],
       );

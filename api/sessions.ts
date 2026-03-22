@@ -6,7 +6,6 @@ import {
   sendError,
   sendSuccess,
   mapSessionRow,
-  getDb,
 } from "./lib";
 
 const isSessionOrigin = (value: unknown): value is "timer" | "manual" =>
@@ -55,8 +54,8 @@ export default createRequestHandler(
         started_at: { type: "string", required: true },
         ended_at: { type: "string", required: false },
         date: { type: "string", required: true },
-        segments: { type: "object", required: false },
-        audit_events: { type: "object", required: false },
+        segments: { type: "array", required: false },
+        audit_events: { type: "array", required: false },
       });
 
       if (!validated) {
@@ -69,6 +68,18 @@ export default createRequestHandler(
       const task = await query.fetchById("tasks", validated.task_id as string);
       if (!task) {
         return sendError(res, 404, "Task not found");
+      }
+
+      if (
+        typeof validated.ended_at === "string" &&
+        validated.ended_at < validated.started_at
+      ) {
+        return sendValidationError(res, [
+          {
+            field: "ended_at",
+            message: "ended_at must be greater than or equal to started_at",
+          },
+        ]);
       }
 
       const sessionId = await query.insert("sessions", {

@@ -5,7 +5,7 @@ export type RequestHandler = (
   req: VercelRequest,
   res: VercelResponse,
   userId: string,
-) => Promise<void> | void;
+) => Promise<unknown> | unknown;
 
 export interface HandlerOptions {
   allowedMethods: string[];
@@ -121,5 +121,5 @@ export const getQueryParams = <T extends QueryParamsSpec>(
     }
   }
 
-  return result;
+  return result as Partial<Record<keyof T, string | string[] | number>>;
 };

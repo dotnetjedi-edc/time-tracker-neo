@@ -10,7 +10,7 @@ export interface ValidationError {
  */
 export interface ValidationSchema {
   [key: string]: {
-    type: "string" | "number" | "boolean" | "string[]" | "object";
+    type: "string" | "number" | "boolean" | "string[]" | "object" | "array";
     required?: boolean;
     minLength?: number;
     maxLength?: number;
@@ -58,14 +58,24 @@ export const validateBody = (
     switch (rules.type) {
       case "string":
         isValid = typeof value === "string";
-        if (isValid && rules.minLength && value.length < rules.minLength) {
+        if (
+          isValid &&
+          rules.minLength &&
+          typeof value === "string" &&
+          value.length < rules.minLength
+        ) {
           errors.push({
             field,
             message: `Must be at least ${rules.minLength} characters`,
           });
           isValid = false;
         }
-        if (isValid && rules.maxLength && value.length > rules.maxLength) {
+        if (
+          isValid &&
+          rules.maxLength &&
+          typeof value === "string" &&
+          value.length > rules.maxLength
+        ) {
           errors.push({
             field,
             message: `Must be at most ${rules.maxLength} characters`,
@@ -97,6 +107,10 @@ export const validateBody = (
       case "object":
         isValid =
           typeof value === "object" && value !== null && !Array.isArray(value);
+        break;
+
+      case "array":
+        isValid = Array.isArray(value);
         break;
     }
 
@@ -161,10 +175,15 @@ export const sendError = (
   details?: unknown,
 ) => {
   res.setHeader("Content-Type", "application/json");
-  return res.status(statusCode).json({
+  const payload: { error: string; details?: unknown } = {
     error: message,
-    ...(details && { details }),
-  });
+  };
+
+  if (details !== undefined) {
+    payload.details = details;
+  }
+
+  return res.status(statusCode).json(payload);
 };
 
 /**

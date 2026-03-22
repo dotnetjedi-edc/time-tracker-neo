@@ -8,6 +8,19 @@ import {
   mapTaskRow,
 } from "./lib";
 
+const hasOnlyOwnedTags = async (
+  query: ReturnType<typeof createUserQueryHelper>,
+  tagIds: string[],
+): Promise<boolean> => {
+  const uniqueTagIds = [...new Set(tagIds)];
+  if (uniqueTagIds.length === 0) {
+    return true;
+  }
+
+  const { rows } = await query.fetchByIds("tags", uniqueTagIds);
+  return rows.length === uniqueTagIds.length;
+};
+
 export default createRequestHandler(
   async (req, res, userId) => {
     const query = createUserQueryHelper(userId);
@@ -30,11 +43,21 @@ export default createRequestHandler(
         ]);
       }
 
+      const tagIds = (validated.tag_ids as string[] | undefined) ?? [];
+      if (!(await hasOnlyOwnedTags(query, tagIds))) {
+        return sendValidationError(res, [
+          {
+            field: "tag_ids",
+            message: "One or more tags do not belong to the authenticated user",
+          },
+        ]);
+      }
+
       const maxPos = await query.count("tasks");
       const taskId = await query.insert("tasks", {
         name: validated.name,
         comment: validated.comment ?? null,
-        tag_ids: JSON.stringify(validated.tag_ids ?? []),
+        tag_ids: JSON.stringify(tagIds),
         total_time_seconds: 0,
         position: maxPos,
         lifecycle_status: "active",

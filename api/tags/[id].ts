@@ -6,6 +6,7 @@ import {
   sendError,
   sendSuccess,
   mapTagRow,
+  getDb,
 } from "../lib";
 
 export default createRequestHandler(
@@ -47,54 +48,52 @@ export default createRequestHandler(
 
       await query.updateById("tags", tagId, updates);
       const updated = await query.fetchById("tags", tagId);
+      if (!updated) {
+        return sendError(res, 500, "Failed to update tag");
+      }
+
       return sendSuccess(res, mapTagRow(updated));
     }
 
     if (req.method === "DELETE") {
+      const db = getDb();
+      const tasksWithTag = await db.execute(
+        "SELECT id, tag_ids FROM tasks WHERE user_id = ?",
+        [userId],
+      );
+
+      for (const task of tasksWithTag.rows) {
+        const row = task as Record<string, unknown>;
+        const tagIds = (() => {
+          try {
+            const parsed = JSON.parse(String(row.tag_ids ?? "[]"));
+            return Array.isArray(parsed) ? parsed : [];
+          } catch {
+            return [];
+          }
+        })();
+        const filteredTagIds = tagIds.filter(
+          (candidate: unknown) => String(candidate) !== tagId,
+        );
+
+        if (filteredTagIds.length === tagIds.length) {
+          continue;
+        }
+
+        await db.execute(
+          "UPDATE tasks SET tag_ids = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+          [
+            JSON.stringify(filteredTagIds),
+            new Date().toISOString(),
+            String(row.id),
+            userId,
+          ],
+        );
+      }
+
       await query.deleteById("tags", tagId);
       return res.status(204).end();
     }
   },
   { allowedMethods: ["PUT", "DELETE"] },
 );
-  }
-
-  if (req.method === "DELETE") {
-    const tasksWithTag = await db.execute(
-      "SELECT id, tag_ids FROM tasks WHERE user_id = ?",
-      [userId],
-    );
-
-    for (const task of tasksWithTag.rows) {
-      const tagIds = (() => {
-        try {
-          const parsed = JSON.parse(
-            String((task as Record<string, unknown>).tag_ids ?? "[]"),
-          );
-          return Array.isArray(parsed) ? parsed : [];
-        } catch {
-          return [];
-        }
-      })();
-      const filtered = tagIds.filter((id: string) => id !== tagId);
-      await db.execute(
-        "UPDATE tasks SET tag_ids = ?, updated_at = ? WHERE id = ? AND user_id = ?",
-        [
-          JSON.stringify(filtered),
-          new Date().toISOString(),
-          (task as Record<string, unknown>).id,
-          userId,
-        ],
-      );
-    }
-
-    await db.execute("DELETE FROM tags WHERE id = ? AND user_id = ?", [
-      tagId,
-      userId,
-    ]);
-
-    return res.status(204).end();
-  }
-
-  return sendMethodNotAllowed(res, ["PUT", "DELETE", "OPTIONS"]);
-}

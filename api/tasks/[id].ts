@@ -9,8 +9,18 @@ import {
   getDb,
 } from "../lib";
 
-const isLifecycleStatus = (value: unknown): value is "active" | "archived" =>
-  value === "active" || value === "archived";
+const hasOnlyOwnedTags = async (
+  query: ReturnType<typeof createUserQueryHelper>,
+  tagIds: string[],
+): Promise<boolean> => {
+  const uniqueTagIds = [...new Set(tagIds)];
+  if (uniqueTagIds.length === 0) {
+    return true;
+  }
+
+  const { rows } = await query.fetchByIds("tags", uniqueTagIds);
+  return rows.length === uniqueTagIds.length;
+};
 
 export default createRequestHandler(
   async (req, res, userId) => {
@@ -58,12 +68,25 @@ export default createRequestHandler(
         ]);
       }
 
+      if (
+        validated.tag_ids !== undefined &&
+        !(await hasOnlyOwnedTags(query, validated.tag_ids as string[]))
+      ) {
+        return sendValidationError(res, [
+          {
+            field: "tag_ids",
+            message: "One or more tags do not belong to the authenticated user",
+          },
+        ]);
+      }
+
       const updates: Record<string, unknown> = {};
       if (validated.name !== undefined) updates.name = validated.name;
       if (validated.comment !== undefined) updates.comment = validated.comment;
       if (validated.total_time_seconds !== undefined)
         updates.total_time_seconds = validated.total_time_seconds;
-      if (validated.position !== undefined) updates.position = validated.position;
+      if (validated.position !== undefined)
+        updates.position = validated.position;
       if (validated.tag_ids !== undefined)
         updates.tag_ids = JSON.stringify(validated.tag_ids);
       if (validated.lifecycle_status !== undefined)
@@ -77,6 +100,10 @@ export default createRequestHandler(
 
       await query.updateById("tasks", taskId, updates);
       const updated = await query.fetchById("tasks", taskId);
+      if (!updated) {
+        return sendError(res, 500, "Failed to update task");
+      }
+
       return sendSuccess(res, mapTaskRow(updated));
     }
 
@@ -87,6 +114,10 @@ export default createRequestHandler(
         "DELETE FROM active_timers WHERE user_id = ? AND task_id = ?",
         [userId, taskId],
       );
+      await db.execute(
+        "DELETE FROM sessions WHERE user_id = ? AND task_id = ?",
+        [userId, taskId],
+      );
       // Delete task
       await query.deleteById("tasks", taskId);
       return res.status(204).end();
@@ -94,7 +125,3 @@ export default createRequestHandler(
   },
   { allowedMethods: ["PUT", "DELETE"] },
 );
-  }
-
-  return sendMethodNotAllowed(res, ["PUT", "DELETE", "OPTIONS"]);
-}

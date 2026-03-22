@@ -18,6 +18,8 @@ jobs:
   type-check:
     runs-on: ubuntu-latest
     name: TypeScript Build
+    env:
+      VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets['VITE_CLERK_PUBLISHABLE_KEY'] }}
     steps:
       - uses: actions/checkout@v4
 
@@ -31,12 +33,15 @@ jobs:
 
       - name: Build application
         run: npm run build
-        env:
-          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets['VITE_CLERK_PUBLISHABLE_KEY'] }}
 
   unit-tests:
     runs-on: ubuntu-latest
     name: Unit Tests
+    env:
+      CLERK_SECRET_KEY: ${{ secrets['CLERK_SECRET_KEY'] }}
+      TURSO_DATABASE_URL: ${{ secrets['TURSO_DATABASE_URL'] }}
+      TURSO_AUTH_TOKEN: ${{ secrets['TURSO_AUTH_TOKEN'] }}
+      VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets['VITE_CLERK_PUBLISHABLE_KEY'] }}
     steps:
       - uses: actions/checkout@v4
 
@@ -54,6 +59,11 @@ jobs:
   integration-tests:
     runs-on: ubuntu-latest
     name: Integration Tests
+    env:
+      CLERK_SECRET_KEY: ${{ secrets['CLERK_SECRET_KEY'] }}
+      TURSO_DATABASE_URL: ${{ secrets['TURSO_DATABASE_URL'] }}
+      TURSO_AUTH_TOKEN: ${{ secrets['TURSO_AUTH_TOKEN'] }}
+      VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets['VITE_CLERK_PUBLISHABLE_KEY'] }}
     steps:
       - uses: actions/checkout@v4
 
@@ -80,6 +90,10 @@ jobs:
       VERCEL_TOKEN: ${{ secrets['VERCEL_TOKEN'] }}
       VERCEL_ORG_ID: ${{ secrets['VERCEL_ORG_ID'] }}
       VERCEL_PROJECT_ID: ${{ secrets['VERCEL_PROJECT_ID'] }}
+      CLERK_SECRET_KEY: ${{ secrets['CLERK_SECRET_KEY'] }}
+      TURSO_DATABASE_URL: ${{ secrets['TURSO_DATABASE_URL'] }}
+      TURSO_AUTH_TOKEN: ${{ secrets['TURSO_AUTH_TOKEN'] }}
+      VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets['VITE_CLERK_PUBLISHABLE_KEY'] }}
     steps:
       - uses: actions/checkout@v4
 
@@ -93,8 +107,6 @@ jobs:
 
       - name: Build application
         run: npm run build
-        env:
-          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets['VITE_CLERK_PUBLISHABLE_KEY'] }}
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
