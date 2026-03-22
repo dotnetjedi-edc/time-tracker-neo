@@ -9,13 +9,13 @@ import {
 interface TaskSessionsModalProps {
   task: Task | null;
   sessions: TaskSession[];
-  activeSessionId: number | null;
+  activeSessionId: string | null;
   isOpen: boolean;
   initialView: "manual" | "history";
   onClose: () => void;
-  onCreate: (taskId: number, draft: SessionDraft) => void;
-  onUpdate: (sessionId: number, draft: SessionDraft) => void;
-  onDelete: (sessionId: number) => void;
+  onCreate: (taskId: string, draft: SessionDraft) => void | Promise<void>;
+  onUpdate: (sessionId: string, draft: SessionDraft) => void | Promise<void>;
+  onDelete: (sessionId: string) => void | Promise<void>;
 }
 
 const emptyDraft: SessionDraft = {
@@ -36,7 +36,7 @@ export function TaskSessionsModal({
 }: TaskSessionsModalProps) {
   const [view, setView] = useState<"manual" | "history">(initialView);
   const [draft, setDraft] = useState<SessionDraft>(emptyDraft);
-  const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) {

@@ -1,7 +1,10 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { act } from "react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { TimeTrackerApiClient } from "../../lib/api";
+import type { ActiveTimer, Tag, Task, TaskSession } from "../../types";
 import App from "../../App";
 import { TaskCard } from "../../components/TaskCard";
 import {
@@ -9,14 +12,264 @@ import {
   useTimeTrackerStore,
 } from "../../store/useTimeTrackerStore";
 
+function clone<T>(value: T): T {
+  return structuredClone(value);
+}
+
+function toNumericId(value: string): number {
+  const numericValue = Number.parseInt(value, 10);
+  return Number.isNaN(numericValue) ? 0 : numericValue;
+}
+
+let mockWorkspace: {
+  tasks: Task[];
+  tags: Tag[];
+  sessions: TaskSession[];
+  activeTimer: ActiveTimer | null;
+} = {
+  tasks: [],
+  tags: [],
+  sessions: [],
+  activeTimer: null,
+};
+
+function resetMockWorkspace(): void {
+  mockWorkspace = {
+    tasks: [],
+    tags: [],
+    sessions: [],
+    activeTimer: null,
+  };
+}
+
+function syncMockWorkspaceFromStore(): void {
+  const state = useTimeTrackerStore.getState();
+  mockWorkspace = {
+    tasks: clone(state.tasks),
+    tags: clone(state.tags),
+    sessions: clone(state.sessions),
+    activeTimer: clone(state.activeTimer),
+  };
+}
+
+function createMockApiClient(): TimeTrackerApiClient {
+  let nextTaskId =
+    Math.max(0, ...mockWorkspace.tasks.map((task) => toNumericId(task.id))) + 1;
+  let nextTagId =
+    Math.max(0, ...mockWorkspace.tags.map((tag) => toNumericId(tag.id))) + 1;
+  let nextSessionId =
+    Math.max(
+      0,
+      ...mockWorkspace.sessions.map((session) => toNumericId(session.id)),
+    ) + 1;
+
+  return {
+    tasks: {
+      list: async () => clone(mockWorkspace.tasks),
+      create: async (draft) => {
+        const now = new Date().toISOString();
+        const task: Task = {
+          id: String(nextTaskId++),
+          name: draft.name,
+          comment: draft.comment || null,
+          totalTimeSeconds: 0,
+          position: mockWorkspace.tasks.length,
+          tagIds: clone(draft.tagIds),
+          lifecycle: {
+            status: "active",
+            archivedAt: null,
+          },
+          createdAt: now,
+          updatedAt: now,
+        };
+        mockWorkspace.tasks = [...mockWorkspace.tasks, task];
+        return clone(task);
+      },
+      update: async (id, patch) => {
+        const existing = mockWorkspace.tasks.find((task) => task.id === id);
+        if (!existing) {
+          throw new Error("Task not found");
+        }
+
+        const task: Task = {
+          ...existing,
+          name: patch.name ?? existing.name,
+          comment:
+            patch.comment === undefined ? existing.comment : patch.comment,
+          totalTimeSeconds: patch.totalTimeSeconds ?? existing.totalTimeSeconds,
+          position: patch.position ?? existing.position,
+          tagIds: patch.tagIds ?? existing.tagIds,
+          lifecycle: {
+            status:
+              patch.lifecycleStatus ?? existing.lifecycle?.status ?? "active",
+            archivedAt:
+              patch.archivedAt === undefined
+                ? (existing.lifecycle?.archivedAt ?? null)
+                : patch.archivedAt,
+          },
+          updatedAt: new Date().toISOString(),
+        };
+        mockWorkspace.tasks = mockWorkspace.tasks.map((candidate) =>
+          candidate.id === id ? task : candidate,
+        );
+        return clone(task);
+      },
+      delete: async (id) => {
+        mockWorkspace.tasks = mockWorkspace.tasks.filter(
+          (task) => task.id !== id,
+        );
+        mockWorkspace.sessions = mockWorkspace.sessions.filter(
+          (session) => session.taskId !== id,
+        );
+        if (mockWorkspace.activeTimer?.taskId === id) {
+          mockWorkspace.activeTimer = null;
+        }
+      },
+    },
+    tags: {
+      list: async () => clone(mockWorkspace.tags),
+      create: async (input) => {
+        const tag: Tag = {
+          id: String(nextTagId++),
+          name: input.name,
+          color: input.color,
+          createdAt: new Date().toISOString(),
+        };
+        mockWorkspace.tags = [...mockWorkspace.tags, tag];
+        return clone(tag);
+      },
+      update: async (id, input) => {
+        const existing = mockWorkspace.tags.find((tag) => tag.id === id);
+        if (!existing) {
+          throw new Error("Tag not found");
+        }
+
+        const tag: Tag = {
+          ...existing,
+          name: input.name,
+          color: input.color,
+        };
+        mockWorkspace.tags = mockWorkspace.tags.map((candidate) =>
+          candidate.id === id ? tag : candidate,
+        );
+        return clone(tag);
+      },
+      delete: async (id) => {
+        mockWorkspace.tags = mockWorkspace.tags.filter((tag) => tag.id !== id);
+        mockWorkspace.tasks = mockWorkspace.tasks.map((task) => ({
+          ...task,
+          tagIds: task.tagIds.filter((tagId) => tagId !== id),
+        }));
+      },
+    },
+    sessions: {
+      list: async (taskId) =>
+        clone(
+          taskId
+            ? mockWorkspace.sessions.filter(
+                (session) => session.taskId === taskId,
+              )
+            : mockWorkspace.sessions,
+        ),
+      create: async (input) => {
+        const timestamp = input.endedAt ?? input.startedAt;
+        const session: TaskSession = {
+          id: String(nextSessionId++),
+          taskId: input.taskId,
+          origin: input.origin,
+          startedAt: input.startedAt,
+          endedAt: input.endedAt,
+          date: input.date,
+          segments: clone(input.segments),
+          auditEvents: clone(input.auditEvents),
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        };
+        mockWorkspace.sessions = [...mockWorkspace.sessions, session];
+        return clone(session);
+      },
+      update: async (id, input) => {
+        const existing = mockWorkspace.sessions.find(
+          (session) => session.id === id,
+        );
+        if (!existing) {
+          throw new Error("Session not found");
+        }
+
+        const session: TaskSession = {
+          ...existing,
+          startedAt: input.startedAt ?? existing.startedAt,
+          endedAt:
+            input.endedAt === undefined ? existing.endedAt : input.endedAt,
+          date: input.date ?? existing.date,
+          segments: input.segments ?? existing.segments,
+          auditEvents: input.auditEvents ?? existing.auditEvents,
+          updatedAt: input.endedAt ?? existing.updatedAt,
+        };
+        mockWorkspace.sessions = mockWorkspace.sessions.map((candidate) =>
+          candidate.id === id ? session : candidate,
+        );
+        return clone(session);
+      },
+      delete: async (id) => {
+        mockWorkspace.sessions = mockWorkspace.sessions.filter(
+          (session) => session.id !== id,
+        );
+        if (mockWorkspace.activeTimer?.sessionId === id) {
+          mockWorkspace.activeTimer = null;
+        }
+      },
+    },
+    activeTimer: {
+      get: async () => clone(mockWorkspace.activeTimer),
+      set: async (input) => {
+        mockWorkspace.activeTimer = {
+          taskId: input.taskId,
+          sessionId: input.sessionId,
+          segmentStartTime: input.segmentStartTime,
+          updatedAt: input.segmentStartTime,
+        };
+        return clone(mockWorkspace.activeTimer);
+      },
+      delete: async () => {
+        mockWorkspace.activeTimer = null;
+      },
+    },
+  };
+}
+
+vi.mock("@clerk/clerk-react", () => ({
+  ClerkLoaded: ({ children }: { children: ReactNode }) => children,
+  ClerkLoading: () => null,
+  SignIn: () => null,
+  SignedIn: ({ children }: { children: ReactNode }) => children,
+  SignedOut: () => null,
+  useAuth: () => ({
+    getToken: async () => "test-token",
+  }),
+}));
+
+vi.mock("../../lib/api", () => ({
+  createTimeTrackerApiClient: () => createMockApiClient(),
+}));
+
+async function renderApp(): Promise<void> {
+  render(<App />);
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
 describe("Time Tracker integration", () => {
   beforeEach(() => {
     vi.useRealTimers();
+    resetMockWorkspace();
   });
 
   it("creates tags and tasks, runs a timer, then exposes the result in the weekly view", async () => {
     const user = userEvent.setup();
-    render(<App />);
+    await renderApp();
 
     await user.click(screen.getByRole("button", { name: /gérer les tags/i }));
     await user.type(screen.getByLabelText(/nom du nouveau tag/i), "Client");
@@ -71,7 +324,7 @@ describe("Time Tracker integration", () => {
 
   it("filters the task grid by selected tags", async () => {
     const user = userEvent.setup();
-    render(<App />);
+    await renderApp();
 
     await user.click(screen.getByRole("button", { name: /gérer les tags/i }));
     await user.type(screen.getByLabelText(/nom du nouveau tag/i), "Client");
@@ -120,7 +373,7 @@ describe("Time Tracker integration", () => {
       migratePersistedState({
         tasks: [
           {
-            id: 1,
+            id: "1",
             name: "Session client",
             comment: "Reprise après refresh",
             totalTimeSeconds: 0,
@@ -132,7 +385,7 @@ describe("Time Tracker integration", () => {
         ],
         tags: [
           {
-            id: 1,
+            id: "1",
             name: "Client",
             color: "blue",
             createdAt: "2026-03-20T08:00:00.000Z",
@@ -140,7 +393,7 @@ describe("Time Tracker integration", () => {
         ],
         timeEntries: [],
         activeTimer: {
-          taskId: 1,
+          taskId: "1",
           startTime: "2026-03-20T09:30:00.000Z",
           updatedAt: "2026-03-20T09:30:00.000Z",
         },
@@ -149,8 +402,9 @@ describe("Time Tracker integration", () => {
         reportAnchor: "2026-03-20",
       }),
     );
+    syncMockWorkspaceFromStore();
 
-    render(<App />);
+    await renderApp();
 
     expect(screen.getByText(/^chrono actif$/i)).toBeInTheDocument();
     expect(
@@ -181,7 +435,7 @@ describe("Time Tracker integration", () => {
       migratePersistedState({
         tasks: [
           {
-            id: 1,
+            id: "1",
             name: "Session client",
             comment: "Reprise après refresh",
             totalTimeSeconds: 0,
@@ -194,7 +448,7 @@ describe("Time Tracker integration", () => {
         tags: [],
         timeEntries: [],
         activeTimer: {
-          taskId: 1,
+          taskId: "1",
           startTime: "2026-03-20T09:30:00.000Z",
           updatedAt: "2026-03-20T09:30:00.000Z",
         },
@@ -203,16 +457,19 @@ describe("Time Tracker integration", () => {
         reportAnchor: "2026-03-20",
       }),
     );
+    syncMockWorkspaceFromStore();
 
-    render(<App />);
+    await renderApp();
 
     expect(screen.getByText(/^chrono actif$/i)).toBeInTheDocument();
     expect(screen.getAllByText("Session client").length).toBeGreaterThan(0);
     expect(screen.getAllByText("00:30:00").length).toBeGreaterThan(0);
     expect(screen.getByText(/actif depuis/i)).toBeInTheDocument();
 
-    act(() => {
+    await act(async () => {
       screen.getByRole("button", { name: /arrêter le chrono actif/i }).click();
+      await Promise.resolve();
+      await Promise.resolve();
     });
 
     expect(screen.queryByText(/^chrono actif$/i)).not.toBeInTheDocument();
@@ -233,26 +490,26 @@ describe("Time Tracker integration", () => {
       migratePersistedState({
         tasks: [
           {
-            id: 1,
+            id: "1",
             name: "Préparation atelier client mobile prioritaire",
             comment:
               "Synthèse, validation, ajustements et partage des décisions",
             totalTimeSeconds: 0,
             position: 0,
-            tagIds: [1, 2],
+            tagIds: ["1", "2"],
             createdAt: "2026-03-20T09:00:00.000Z",
             updatedAt: "2026-03-20T09:00:00.000Z",
           },
         ],
         tags: [
           {
-            id: 1,
+            id: "1",
             name: "Client",
             color: "blue",
             createdAt: "2026-03-20T08:00:00.000Z",
           },
           {
-            id: 2,
+            id: "2",
             name: "Mobile",
             color: "green",
             createdAt: "2026-03-20T08:05:00.000Z",
@@ -260,7 +517,7 @@ describe("Time Tracker integration", () => {
         ],
         timeEntries: [],
         activeTimer: {
-          taskId: 1,
+          taskId: "1",
           startTime: "2026-03-20T09:30:00.000Z",
           updatedAt: "2026-03-20T09:30:00.000Z",
         },
@@ -269,8 +526,9 @@ describe("Time Tracker integration", () => {
         reportAnchor: "2026-03-20",
       }),
     );
+    syncMockWorkspaceFromStore();
 
-    render(<App />);
+    await renderApp();
 
     const taskCard = screen.getByTestId("task-card-1");
 
@@ -318,7 +576,7 @@ describe("Time Tracker integration", () => {
       migratePersistedState({
         tasks: [
           {
-            id: 1,
+            id: "1",
             name: "Préparation atelier",
             comment: "Coordination client",
             totalTimeSeconds: 0,
@@ -336,8 +594,9 @@ describe("Time Tracker integration", () => {
         reportAnchor: "2026-03-20",
       }),
     );
+    syncMockWorkspaceFromStore();
 
-    render(<App />);
+    await renderApp();
 
     const taskCard = screen.getByTestId("task-card-1");
 
@@ -362,7 +621,7 @@ describe("Time Tracker integration", () => {
     ).toBeInTheDocument();
   }, 10000);
 
-  it("starts, switches, and stops timers from simple task-card clicks", () => {
+  it("starts, switches, and stops timers from simple task-card clicks", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-03-20T10:00:00.000Z"));
 
@@ -370,7 +629,7 @@ describe("Time Tracker integration", () => {
       migratePersistedState({
         tasks: [
           {
-            id: 1,
+            id: "1",
             name: "Alpha",
             comment: "Première tâche",
             totalTimeSeconds: 0,
@@ -380,7 +639,7 @@ describe("Time Tracker integration", () => {
             updatedAt: "2026-03-20T09:00:00.000Z",
           },
           {
-            id: 2,
+            id: "2",
             name: "Beta",
             comment: "Deuxième tâche",
             totalTimeSeconds: 0,
@@ -398,31 +657,44 @@ describe("Time Tracker integration", () => {
         reportAnchor: "2026-03-20",
       }),
     );
+    syncMockWorkspaceFromStore();
 
-    render(<App />);
+    await renderApp();
 
     const alphaCard = screen.getByTestId("task-card-1");
     const betaCard = screen.getByTestId("task-card-2");
 
-    fireEvent.click(alphaCard);
+    await act(async () => {
+      fireEvent.click(alphaCard);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     expect(within(alphaCard).getByText(/^actif$/i)).toBeVisible();
-    expect(useTimeTrackerStore.getState().activeTimer?.taskId).toBe(1);
+    expect(useTimeTrackerStore.getState().activeTimer?.taskId).toBe("1");
 
     act(() => {
       vi.advanceTimersByTime(2000);
     });
 
-    fireEvent.click(betaCard);
+    await act(async () => {
+      fireEvent.click(betaCard);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     expect(within(betaCard).getByText(/^actif$/i)).toBeVisible();
     expect(within(alphaCard).getByText(/^prêt$/i)).toBeVisible();
-    expect(useTimeTrackerStore.getState().activeTimer?.taskId).toBe(2);
+    expect(useTimeTrackerStore.getState().activeTimer?.taskId).toBe("2");
     expect(useTimeTrackerStore.getState().tasks[0]?.totalTimeSeconds).toBe(2);
 
     act(() => {
       vi.advanceTimersByTime(1000);
     });
 
-    fireEvent.click(betaCard);
+    await act(async () => {
+      fireEvent.click(betaCard);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     expect(useTimeTrackerStore.getState().activeTimer).toBeNull();
     expect(within(betaCard).getByText(/^prêt$/i)).toBeVisible();
     expect(useTimeTrackerStore.getState().tasks[1]?.totalTimeSeconds).toBe(1);
@@ -436,7 +708,7 @@ describe("Time Tracker integration", () => {
     render(
       <TaskCard
         task={{
-          id: 1,
+          id: "1",
           name: "Alpha",
           comment: "Tâche active",
           totalTimeSeconds: 0,

@@ -3,7 +3,7 @@ title: "Sessions and Active Timer API Endpoints"
 story_id: "5.3"
 story_key: "5-3-sessions-and-active-timer-api-endpoints"
 created: "2026-03-21"
-status: "ready-for-dev"
+status: "review"
 stepsCompleted: [1, 2, 3, 4]
 epic: "Epic 5: Backend Persistence & Multi-Device Sync"
 tech_stack:
@@ -37,7 +37,7 @@ test_patterns:
 
 ## Story 5.3: Sessions and Active Timer API Endpoints
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -55,20 +55,20 @@ so that tracked time survives device switches, reloads, and browser resets.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Complete session collection and item endpoints (AC: 3, 5)
-  - [ ] Harden `api/sessions.ts` for validation, task ownership, and consistent default ordering.
-  - [ ] Complete `api/sessions/[id].ts` for update and delete behavior with user scoping.
-  - [ ] Keep JSON serialization of `segments` and `audit_events` stable across all CRUD paths.
+- [x] Task 1: Complete session collection and item endpoints (AC: 3, 5)
+  - [x] Harden `api/sessions.ts` for validation, task ownership, and consistent default ordering.
+  - [x] Complete `api/sessions/[id].ts` for update and delete behavior with user scoping.
+  - [x] Keep JSON serialization of `segments` and `audit_events` stable across all CRUD paths.
 
-- [ ] Task 2: Complete the active timer persistence boundary (AC: 1, 2, 4, 5)
-  - [ ] Ensure `api/active-timer.ts` enforces a single active timer row per user.
-  - [ ] Validate that `task_id` and `session_id` refer to user-owned records before persisting.
-  - [ ] Make the delete path idempotent so stopping a timer twice does not corrupt state.
+- [x] Task 2: Complete the active timer persistence boundary (AC: 1, 2, 4, 5)
+  - [x] Ensure `api/active-timer.ts` enforces a single active timer row per user.
+  - [x] Validate that `task_id` and `session_id` refer to user-owned records before persisting.
+  - [x] Make the delete path idempotent so stopping a timer twice does not corrupt state.
 
-- [ ] Task 3: Add regression coverage for time-domain edge cases (AC: 1, 2, 3, 4, 5)
-  - [ ] Cover active timer replacement, missing-row reads, and repeated delete behavior.
-  - [ ] Cover session filtering by task id and newest-first ordering.
-  - [ ] Cover malformed JSON-shaped payloads or missing required fields for session creation and updates.
+- [x] Task 3: Add regression coverage for time-domain edge cases (AC: 1, 2, 3, 4, 5)
+  - [x] Cover active timer replacement, missing-row reads, and repeated delete behavior.
+  - [x] Cover session filtering by task id and newest-first ordering.
+  - [x] Cover malformed JSON-shaped payloads or missing required fields for session creation and updates.
 
 ## Dev Notes
 

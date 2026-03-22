@@ -13,7 +13,7 @@ export const summarizeWeek = (
   tasks: Task[],
   sessions: TaskSession[],
   anchorDate: string,
-  selectedTagIds: number[],
+  selectedTagIds: string[],
   tags: Tag[],
 ): WeeklySummary => {
   const days = weekDays(anchorDate).map((date) => toDateKey(date));
@@ -31,7 +31,7 @@ export const summarizeWeek = (
 
   const taskMap = new Map(visibleTasks.map((task) => [task.id, task]));
   const totalsByDay = Object.fromEntries(days.map((day) => [day, 0]));
-  const taskSummaries = new Map<number, WeeklyTaskSummary>();
+  const taskSummaries = new Map<string, WeeklyTaskSummary>();
 
   for (const session of sessions) {
     if (!daySet.has(session.date)) {

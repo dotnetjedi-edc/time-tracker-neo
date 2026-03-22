@@ -3,7 +3,7 @@ title: "Frontend Store Migration to API Layer"
 story_id: "5.4"
 story_key: "5-4-frontend-store-migration-to-api-layer"
 created: "2026-03-21"
-status: "ready-for-dev"
+status: "review"
 stepsCompleted: [1, 2, 3, 4]
 epic: "Epic 5: Backend Persistence & Multi-Device Sync"
 tech_stack:
@@ -40,7 +40,7 @@ test_patterns:
 
 ## Story 5.4: Frontend Store Migration to API Layer
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -58,25 +58,25 @@ so that persistence and multi-device access work without changing my normal time
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Introduce Clerk-backed app bootstrapping and auth gating (AC: 1, 4)
-  - [ ] Wrap the app with Clerk provider wiring in `src/main.tsx`.
-  - [ ] Gate the main experience behind signed-in and signed-out states in `src/App.tsx` or the root composition layer.
-  - [ ] Ensure the initial load waits for authenticated API access before showing persisted workspace data.
+- [x] Task 1: Introduce Clerk-backed app bootstrapping and auth gating (AC: 1, 4)
+  - [x] Wrap the app with Clerk provider wiring in `src/main.tsx`.
+  - [x] Gate the main experience behind signed-in and signed-out states in `src/App.tsx` or the root composition layer.
+  - [x] Ensure the initial load waits for authenticated API access before showing persisted workspace data.
 
-- [ ] Task 2: Replace local persistence internals with API-backed store operations (AC: 1, 2, 5)
-  - [ ] Refactor `src/store/useTimeTrackerStore.ts` away from `persist` middleware and browser storage as the source of truth.
-  - [ ] Keep existing public action names as stable as possible while introducing async backend synchronization.
-  - [ ] Preserve timer, session, ordering, and lifecycle invariants while moving writes behind API calls.
+- [x] Task 2: Replace local persistence internals with API-backed store operations (AC: 1, 2, 5)
+  - [x] Refactor `src/store/useTimeTrackerStore.ts` away from `persist` middleware and browser storage as the source of truth.
+  - [x] Keep existing public action names as stable as possible while introducing async backend synchronization.
+  - [x] Preserve timer, session, ordering, and lifecycle invariants while moving writes behind API calls.
 
-- [ ] Task 3: Harden API client and failure handling paths (AC: 2, 3)
-  - [ ] Ensure `src/lib/api.ts` remains the single typed boundary for backend access.
-  - [ ] Add clear error propagation and user-facing failure feedback for save or load errors.
-  - [ ] Avoid partial UI corruption when one backend request fails during startup or mutation flows.
+- [x] Task 3: Harden API client and failure handling paths (AC: 2, 3)
+  - [x] Ensure `src/lib/api.ts` remains the single typed boundary for backend access.
+  - [x] Add clear error propagation and user-facing failure feedback for save or load errors.
+  - [x] Avoid partial UI corruption when one backend request fails during startup or mutation flows.
 
-- [ ] Task 4: Expand regression coverage for the async store model (AC: 1, 2, 3, 4, 5)
-  - [ ] Update store tests for async actions, recovery behavior, and failed request handling.
-  - [ ] Add end-to-end coverage for sign-in gating and API-backed persistence flows.
-  - [ ] Retire or rewrite tests that assume localStorage is still the canonical persistence layer.
+- [x] Task 4: Expand regression coverage for the async store model (AC: 1, 2, 3, 4, 5)
+  - [x] Update store tests for async actions, recovery behavior, and failed request handling.
+  - [x] Add end-to-end coverage for sign-in gating and API-backed persistence flows.
+  - [x] Retire or rewrite tests that assume localStorage is still the canonical persistence layer.
 
 ## Dev Notes
 

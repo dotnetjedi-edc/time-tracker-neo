@@ -17,12 +17,12 @@ interface ActiveTimerSummary {
 
 interface HeaderProps {
   currentView: ViewMode;
-  selectedTagIds: number[];
+  selectedTagIds: string[];
   tags: Tag[];
   activeTimer: ActiveTimerSummary | null;
   onToggleView: () => void;
   onOpenTags: () => void;
-  onSelectTag: (tagId: number) => void;
+  onSelectTag: (tagId: string) => void;
   onResetFilters: () => void;
   onStopActiveTimer: () => void;
 }

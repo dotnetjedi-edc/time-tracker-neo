@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
 import type {
   ActiveTimer,
   SessionAuditEvent,
@@ -8,14 +7,11 @@ import type {
   SessionSegment,
   Tag,
   Task,
-  TaskSession,
   TaskDraft,
+  TaskSession,
   ViewMode,
 } from "../types";
-import {
-  removePersistedSnapshot,
-  resilientBrowserStorage,
-} from "../lib/persistenceStorage";
+import type { TimeTrackerApiClient } from "../lib/api";
 import {
   createActiveTaskLifecycle,
   isTaskTrackable,
@@ -34,45 +30,44 @@ interface TimeTrackerState {
   tags: Tag[];
   sessions: TaskSession[];
   activeTimer: ActiveTimer | null;
-  selectedTagIds: number[];
+  selectedTagIds: string[];
   currentView: ViewMode;
   reportAnchor: string;
-  resumeCandidateSessionId: number | null;
-  addTask: (draft: TaskDraft) => void;
-  updateTask: (taskId: number, draft: TaskDraft) => void;
-  deleteTask: (taskId: number) => void;
-  setTaskOrder: (taskIds: number[]) => void;
-  reorderTasks: (activeTaskId: number, overTaskId: number) => void;
-  startTimer: (taskId: number, startedAt?: string) => void;
-  stopTimer: (stoppedAt?: string) => void;
-  toggleTimer: (taskId: number) => void;
-  addManualSession: (taskId: number, draft: SessionDraft) => void;
-  updateSession: (sessionId: number, draft: SessionDraft) => void;
-  deleteSession: (sessionId: number) => void;
-  addTag: (name: string, color: string) => void;
-  updateTag: (tagId: number, patch: Pick<Tag, "name" | "color">) => void;
-  deleteTag: (tagId: number) => void;
-  toggleTaskTag: (taskId: number, tagId: number) => void;
-  setSelectedTagIds: (tagIds: number[]) => void;
+  resumeCandidateSessionId: string | null;
+  isLoading: boolean;
+  isInitialized: boolean;
+  lastError: string | null;
+  initialize: (apiClient: TimeTrackerApiClient) => Promise<void>;
+  reloadWorkspace: () => Promise<void>;
+  clearWorkspace: () => void;
+  dismissError: () => void;
+  addTask: (draft: TaskDraft) => Promise<void>;
+  updateTask: (taskId: string, draft: TaskDraft) => Promise<void>;
+  deleteTask: (taskId: string) => Promise<void>;
+  setTaskOrder: (taskIds: string[]) => Promise<void>;
+  reorderTasks: (activeTaskId: string, overTaskId: string) => Promise<void>;
+  startTimer: (taskId: string, startedAt?: string) => Promise<void>;
+  stopTimer: (stoppedAt?: string) => Promise<void>;
+  toggleTimer: (taskId: string) => Promise<void>;
+  addManualSession: (taskId: string, draft: SessionDraft) => Promise<void>;
+  updateSession: (sessionId: string, draft: SessionDraft) => Promise<void>;
+  deleteSession: (sessionId: string) => Promise<void>;
+  addTag: (name: string, color: string) => Promise<void>;
+  updateTag: (
+    tagId: string,
+    patch: Pick<Tag, "name" | "color">,
+  ) => Promise<void>;
+  deleteTag: (tagId: string) => Promise<void>;
+  toggleTaskTag: (taskId: string, tagId: string) => Promise<void>;
+  setSelectedTagIds: (tagIds: string[]) => void;
   setCurrentView: (view: ViewMode) => void;
   moveReportWeek: (direction: -1 | 1) => void;
   resetFilters: () => void;
 }
 
-interface TimeTrackerDataState {
-  tasks: Task[];
-  tags: Tag[];
-  sessions: TaskSession[];
-  activeTimer: ActiveTimer | null;
-  selectedTagIds: number[];
-  currentView: ViewMode;
-  reportAnchor: string;
-  resumeCandidateSessionId: number | null;
-}
-
 interface LegacyTimeEntry {
-  id: number;
-  taskId: number;
+  id: string | number;
+  taskId: string | number;
   startTime: string;
   endTime: string;
   durationSeconds: number;
@@ -81,43 +76,45 @@ interface LegacyTimeEntry {
 }
 
 interface LegacyActiveTimer {
-  taskId: number;
+  taskId: string | number;
   startTime: string;
   updatedAt: string;
 }
 
-interface LegacyPersistedState {
-  tasks?: Task[];
-  tags?: Tag[];
-  timeEntries?: LegacyTimeEntry[];
-  activeTimer?: LegacyActiveTimer | null;
-  selectedTagIds?: number[];
-  currentView?: ViewMode;
-  reportAnchor?: string;
+interface LegacyPersistedTask extends Omit<Task, "id" | "tagIds"> {
+  id: string | number;
+  tagIds: Array<string | number>;
 }
 
-const createTaskId = (tasks: Task[]): number =>
-  tasks.reduce((maxId, task) => Math.max(maxId, task.id), 0) + 1;
+interface LegacyPersistedTag extends Omit<Tag, "id"> {
+  id: string | number;
+}
 
-const createTagId = (tags: Tag[]): number =>
-  tags.reduce((maxId, tag) => Math.max(maxId, tag.id), 0) + 1;
+export interface LegacyPersistedState {
+  tasks: LegacyPersistedTask[];
+  tags: LegacyPersistedTag[];
+  timeEntries: LegacyTimeEntry[];
+  activeTimer: LegacyActiveTimer | null;
+  selectedTagIds: Array<string | number>;
+  currentView: ViewMode;
+  reportAnchor: string;
+}
 
-const createSessionId = (sessions: TaskSession[]): number =>
-  sessions.reduce((maxId, session) => Math.max(maxId, session.id), 0) + 1;
+let currentApiClient: TimeTrackerApiClient | null = null;
 
-const createSegmentId = (sessions: TaskSession[]): number =>
-  sessions.reduce(
-    (maxId, session) =>
-      Math.max(maxId, ...session.segments.map((segment) => segment.id)),
-    0,
-  ) + 1;
-
-const createAuditEventId = (sessions: TaskSession[]): number =>
-  sessions.reduce(
-    (maxId, session) =>
-      Math.max(maxId, ...session.auditEvents.map((event) => event.id)),
-    0,
-  ) + 1;
+export const createInitialTimeTrackerData = () => ({
+  tasks: [] as Task[],
+  tags: [] as Tag[],
+  sessions: [] as TaskSession[],
+  activeTimer: null as ActiveTimer | null,
+  selectedTagIds: [] as string[],
+  currentView: "grid" as ViewMode,
+  reportAnchor: todayKey(),
+  resumeCandidateSessionId: null as string | null,
+  isLoading: false,
+  isInitialized: false,
+  lastError: null as string | null,
+});
 
 const normalizeTaskDraft = (draft: TaskDraft): TaskDraft => ({
   ...draft,
@@ -131,7 +128,105 @@ const normalizeSessionDraft = (draft: SessionDraft): SessionDraft => ({
   endTime: draft.endTime,
 });
 
-const applyTaskOrder = (tasks: Task[], orderedTaskIds: number[]): Task[] => {
+const toStringId = (value: string | number): string => String(value);
+
+export const migratePersistedState = (
+  legacyState: LegacyPersistedState,
+): ReturnType<typeof createInitialTimeTrackerData> => {
+  const tasks = legacyState.tasks.map((task) =>
+    normalizeTask({
+      ...task,
+      id: toStringId(task.id),
+      tagIds: task.tagIds.map(toStringId),
+    }),
+  );
+
+  const tags = legacyState.tags.map((tag) => ({
+    ...tag,
+    id: toStringId(tag.id),
+  }));
+
+  const migratedSessions: TaskSession[] = legacyState.timeEntries.map(
+    (entry) => ({
+      id: toStringId(entry.id),
+      taskId: toStringId(entry.taskId),
+      origin: "manual",
+      startedAt: entry.startTime,
+      endedAt: entry.endTime,
+      date: entry.date,
+      segments: [
+        {
+          id: 1,
+          startTime: entry.startTime,
+          endTime: entry.endTime,
+          durationSeconds: entry.durationSeconds,
+        },
+      ],
+      auditEvents: [
+        {
+          id: 1,
+          type: "migrated",
+          at: entry.createdAt,
+          description: "Migrated from legacy persisted time entry.",
+        },
+      ],
+      createdAt: entry.createdAt,
+      updatedAt: entry.createdAt,
+    }),
+  );
+
+  const nextSessionId = migratedSessions.length + 1;
+  const activeTimer = legacyState.activeTimer
+    ? {
+        taskId: toStringId(legacyState.activeTimer.taskId),
+        sessionId: String(nextSessionId),
+        segmentStartTime: legacyState.activeTimer.startTime,
+        updatedAt: legacyState.activeTimer.updatedAt,
+      }
+    : null;
+
+  const activeSession = legacyState.activeTimer
+    ? ({
+        id: String(nextSessionId),
+        taskId: toStringId(legacyState.activeTimer.taskId),
+        origin: "timer",
+        startedAt: legacyState.activeTimer.startTime,
+        endedAt: null,
+        date: toDateKey(legacyState.activeTimer.startTime),
+        segments: [],
+        auditEvents: [
+          {
+            id: 1,
+            type: "migrated",
+            at: legacyState.activeTimer.updatedAt,
+            description: "Recovered active timer from legacy persisted state.",
+          },
+        ],
+        createdAt: legacyState.activeTimer.updatedAt,
+        updatedAt: legacyState.activeTimer.updatedAt,
+      } satisfies TaskSession)
+    : null;
+
+  const sessions = activeSession
+    ? [...migratedSessions, activeSession]
+    : migratedSessions;
+
+  return {
+    tasks: syncTaskTotals(tasks, sessions),
+    tags,
+    sessions,
+    activeTimer,
+    selectedTagIds: legacyState.selectedTagIds.map(toStringId),
+    currentView: legacyState.currentView,
+    reportAnchor: legacyState.reportAnchor,
+    resumeCandidateSessionId: null,
+    isLoading: false,
+    isInitialized: false,
+    lastError: null,
+  };
+};
+
+const applyTaskOrder = (tasks: Task[], orderedTaskIds: string[]): Task[] => {
   const taskById = new Map(tasks.map((task) => [task.id, task]));
   const orderedTasks = orderedTaskIds
     .map((taskId) => taskById.get(taskId))
@@ -160,8 +255,33 @@ const createAuditEvent = (
   description,
 });
 
+const createSegmentId = (sessions: TaskSession[]): number =>
+  sessions.reduce(
+    (maxId, session) =>
+      Math.max(maxId, ...session.segments.map((segment) => segment.id)),
+    0,
+  ) + 1;
+
+const createAuditEventId = (sessions: TaskSession[]): number =>
+  sessions.reduce(
+    (maxId, session) =>
+      Math.max(maxId, ...session.auditEvents.map((event) => event.id)),
+    0,
+  ) + 1;
+
+const createSessionSegment = (
+  id: number,
+  startTime: string,
+  endTime: string,
+): SessionSegment => ({
+  id,
+  startTime,
+  endTime,
+  durationSeconds: differenceInSeconds(startTime, endTime),
+});
+
 const syncTaskTotals = (tasks: Task[], sessions: TaskSession[]): Task[] => {
-  const totals = new Map<number, number>();
+  const totals = new Map<string, number>();
   for (const session of sessions) {
     totals.set(
       session.taskId,
@@ -175,644 +295,660 @@ const syncTaskTotals = (tasks: Task[], sessions: TaskSession[]): Task[] => {
   }));
 };
 
-const createSessionSegment = (
-  id: number,
-  startTime: string,
-  endTime: string,
-): SessionSegment => ({
-  id,
-  startTime,
-  endTime,
-  durationSeconds: differenceInSeconds(startTime, endTime),
-});
+const resolveErrorMessage = (error: unknown, fallback: string): string =>
+  error instanceof Error && error.message ? error.message : fallback;
 
-const createManualSession = (
-  sessions: TaskSession[],
-  taskId: number,
-  draft: SessionDraft,
-): TaskSession => {
-  const sessionId = createSessionId(sessions);
-  const segmentId = createSegmentId(sessions);
-  const auditEventId = createAuditEventId(sessions);
-  const normalized = normalizeSessionDraft(draft);
-
-  return {
-    id: sessionId,
-    taskId,
-    origin: "manual",
-    startedAt: normalized.startTime,
-    endedAt: normalized.endTime,
-    date: toDateKey(normalized.startTime),
-    segments: [
-      createSessionSegment(segmentId, normalized.startTime, normalized.endTime),
-    ],
-    auditEvents: [
-      createAuditEvent(
-        auditEventId,
-        "manual-added",
-        normalized.endTime,
-        "Ajout manuel de temps.",
-      ),
-    ],
-    createdAt: normalized.endTime,
-    updatedAt: normalized.endTime,
-  };
-};
-
-const toTaskSessionsFromLegacyEntries = (
-  entries: LegacyTimeEntry[],
-): TaskSession[] => {
-  let nextAuditEventId = 1;
-
-  return entries.map((entry, index) => ({
-    id: index + 1,
-    taskId: entry.taskId,
-    origin: "timer",
-    startedAt: entry.startTime,
-    endedAt: entry.endTime,
-    date: entry.date,
-    segments: [
-      {
-        id: index + 1,
-        startTime: entry.startTime,
-        endTime: entry.endTime,
-        durationSeconds: entry.durationSeconds,
-      },
-    ],
-    auditEvents: [
-      createAuditEvent(
-        nextAuditEventId++,
-        "migrated",
-        entry.createdAt,
-        "Session migrée depuis une ancienne entrée de temps.",
-      ),
-    ],
-    createdAt: entry.createdAt,
-    updatedAt: entry.endTime,
-  }));
-};
-
-export const migratePersistedState = (
-  persistedState: unknown,
-): TimeTrackerDataState => {
-  const state = (persistedState ?? {}) as
-    | (LegacyPersistedState & Partial<TimeTrackerDataState>)
-    | undefined;
-
-  if (state?.sessions) {
-    return {
-      tasks: syncTaskTotals(
-        (state.tasks ?? []).map(normalizeTask),
-        state.sessions,
-      ),
-      tags: state.tags ?? [],
-      sessions: state.sessions,
-      activeTimer: state.activeTimer ?? null,
-      selectedTagIds: state.selectedTagIds ?? [],
-      currentView: state.currentView ?? "grid",
-      reportAnchor: state.reportAnchor ?? todayKey(),
-      resumeCandidateSessionId: null,
-    };
+const requireApiClient = (): TimeTrackerApiClient => {
+  if (!currentApiClient) {
+    throw new Error("API client not configured");
   }
 
-  const sessions = toTaskSessionsFromLegacyEntries(state?.timeEntries ?? []);
-  const activeTimer = state?.activeTimer
-    ? {
-        taskId: state.activeTimer.taskId,
-        sessionId: createSessionId(sessions),
-        segmentStartTime: state.activeTimer.startTime,
-        updatedAt: state.activeTimer.updatedAt,
-      }
-    : null;
-
-  const migratedSessions: TaskSession[] = activeTimer
-    ? [
-        ...sessions,
-        {
-          id: activeTimer.sessionId,
-          taskId: activeTimer.taskId,
-          origin: "timer",
-          startedAt: activeTimer.segmentStartTime,
-          endedAt: null,
-          date: toDateKey(activeTimer.segmentStartTime),
-          segments: [],
-          auditEvents: [
-            createAuditEvent(
-              createAuditEventId(sessions),
-              "migrated",
-              activeTimer.updatedAt,
-              "Timer actif migré et en attente de finalisation.",
-            ),
-          ],
-          createdAt: activeTimer.segmentStartTime,
-          updatedAt: activeTimer.updatedAt,
-        },
-      ]
-    : sessions;
-
-  return {
-    tasks: syncTaskTotals(
-      (state?.tasks ?? []).map(normalizeTask),
-      migratedSessions,
-    ),
-    tags: state?.tags ?? [],
-    sessions: migratedSessions,
-    activeTimer,
-    selectedTagIds: state?.selectedTagIds ?? [],
-    currentView: state?.currentView ?? "grid",
-    reportAnchor: state?.reportAnchor ?? todayKey(),
-    resumeCandidateSessionId: null,
-  };
+  return currentApiClient;
 };
 
-export const timeTrackerStorageKey = "time-tracker-storage";
+export const useTimeTrackerStore = create<TimeTrackerState>()((set, get) => ({
+  ...createInitialTimeTrackerData(),
+  initialize: async (apiClient) => {
+    currentApiClient = apiClient;
+    await get().reloadWorkspace();
+  },
+  reloadWorkspace: async () => {
+    const apiClient = requireApiClient();
+    set({ isLoading: true, lastError: null });
 
-export const createInitialTimeTrackerData = (): TimeTrackerDataState => ({
-  tasks: [],
-  tags: [],
-  sessions: [],
-  activeTimer: null,
-  selectedTagIds: [],
-  currentView: "grid",
-  reportAnchor: todayKey(),
-  resumeCandidateSessionId: null,
-});
+    try {
+      const [tasks, tags, sessions, activeTimer] = await Promise.all([
+        apiClient.tasks.list(),
+        apiClient.tags.list(),
+        apiClient.sessions.list(),
+        apiClient.activeTimer.get(),
+      ]);
 
-export const useTimeTrackerStore = create<TimeTrackerState>()(
-  persist(
-    (set, get) => ({
-      ...createInitialTimeTrackerData(),
-      addTask: (draft) => {
-        const normalized = normalizeTaskDraft(draft);
-        if (!normalized.name) {
-          return;
-        }
+      set((state) => ({
+        tasks: syncTaskTotals(tasks.map(normalizeTask), sessions),
+        tags,
+        sessions,
+        activeTimer,
+        selectedTagIds: state.selectedTagIds.filter((tagId) =>
+          tags.some((tag) => tag.id === tagId),
+        ),
+        currentView: state.currentView,
+        reportAnchor: state.reportAnchor,
+        resumeCandidateSessionId: null,
+        isLoading: false,
+        isInitialized: true,
+        lastError: null,
+      }));
+    } catch (error) {
+      set({
+        isLoading: false,
+        isInitialized: false,
+        lastError: resolveErrorMessage(
+          error,
+          "Impossible de charger les données distantes.",
+        ),
+      });
+    }
+  },
+  clearWorkspace: () => {
+    currentApiClient = null;
+    set(createInitialTimeTrackerData());
+  },
+  dismissError: () => set({ lastError: null }),
+  addTask: async (draft) => {
+    const apiClient = requireApiClient();
+    const normalized = normalizeTaskDraft(draft);
+    if (!normalized.name) {
+      return;
+    }
 
-        set((state) => {
-          const now = new Date().toISOString();
-          const nextTask: Task = {
-            id: createTaskId(state.tasks),
-            name: normalized.name,
-            comment: normalized.comment || null,
-            totalTimeSeconds: 0,
-            position: state.tasks.length,
-            tagIds: normalized.tagIds,
-            lifecycle: createActiveTaskLifecycle(),
-            createdAt: now,
-            updatedAt: now,
-          };
+    try {
+      const createdTask = await apiClient.tasks.create(normalized);
+      set((state) => ({ tasks: [...state.tasks, createdTask] }));
+    } catch (error) {
+      set({
+        lastError: resolveErrorMessage(error, "Impossible de créer la tâche."),
+      });
+    }
+  },
+  updateTask: async (taskId, draft) => {
+    const apiClient = requireApiClient();
+    const normalized = normalizeTaskDraft(draft);
+    if (!normalized.name) {
+      return;
+    }
 
-          return { tasks: [...state.tasks, nextTask] };
-        });
-      },
-      updateTask: (taskId, draft) => {
-        const normalized = normalizeTaskDraft(draft);
-        if (!normalized.name) {
-          return;
-        }
+    try {
+      const updatedTask = await apiClient.tasks.update(taskId, {
+        name: normalized.name,
+        comment: normalized.comment || null,
+        tagIds: normalized.tagIds,
+      });
 
-        set((state) => ({
-          tasks: state.tasks.map((task) =>
-            task.id === taskId
-              ? {
-                  ...task,
-                  name: normalized.name,
-                  comment: normalized.comment || null,
-                  tagIds: normalized.tagIds,
-                  updatedAt: new Date().toISOString(),
-                }
-              : task,
-          ),
-        }));
-      },
-      deleteTask: (taskId) => {
-        if (get().activeTimer?.taskId === taskId) {
-          get().stopTimer();
-        }
+      set((state) => ({
+        tasks: state.tasks.map((task) =>
+          task.id === taskId ? updatedTask : task,
+        ),
+      }));
+    } catch (error) {
+      set({
+        lastError: resolveErrorMessage(
+          error,
+          "Impossible de modifier la tâche.",
+        ),
+      });
+    }
+  },
+  deleteTask: async (taskId) => {
+    const apiClient = requireApiClient();
 
-        set((state) => ({
-          tasks: state.tasks
-            .filter((task) => task.id !== taskId)
-            .map((task, index) => ({ ...task, position: index })),
-          sessions: state.sessions.filter(
-            (session) => session.taskId !== taskId,
-          ),
-          resumeCandidateSessionId:
-            state.resumeCandidateSessionId !== null &&
-            state.sessions.some(
-              (session) =>
-                session.id === state.resumeCandidateSessionId &&
-                session.taskId === taskId,
-            )
-              ? null
-              : state.resumeCandidateSessionId,
-        }));
+    try {
+      const activeTimer = get().activeTimer;
+      if (activeTimer?.taskId === taskId) {
+        await apiClient.activeTimer.delete();
+      }
 
-        set((state) => ({
-          tasks: syncTaskTotals(state.tasks, state.sessions),
-        }));
-      },
-      setTaskOrder: (taskIds) => {
-        set((state) => ({
-          tasks: applyTaskOrder(
-            [...state.tasks].sort(
-              (left, right) => left.position - right.position,
-            ),
-            taskIds,
-          ),
-        }));
-      },
-      reorderTasks: (activeTaskId, overTaskId) => {
-        if (activeTaskId === overTaskId) {
-          return;
-        }
+      await apiClient.tasks.delete(taskId);
 
-        set((state) => {
-          const ordered = [...state.tasks].sort(
-            (left, right) => left.position - right.position,
-          );
-          const activeIndex = ordered.findIndex(
-            (task) => task.id === activeTaskId,
-          );
-          const overIndex = ordered.findIndex((task) => task.id === overTaskId);
-          if (activeIndex < 0 || overIndex < 0) {
-            return state;
-          }
-
-          const [moved] = ordered.splice(activeIndex, 1);
-          ordered.splice(overIndex, 0, moved);
-
-          return {
-            tasks: applyTaskOrder(
-              ordered,
-              ordered.map((task) => task.id),
-            ),
-          };
-        });
-      },
-      startTimer: (taskId, startedAt = new Date().toISOString()) => {
-        const targetTask = get().tasks.find((task) => task.id === taskId);
-        if (!targetTask || !isTaskTrackable(targetTask)) {
-          return;
-        }
-
-        const current = get().activeTimer;
-        if (current?.taskId === taskId) {
-          return;
-        }
-        if (current) {
-          get().stopTimer(startedAt);
-        }
-
-        set((state) => {
-          const resumableSession =
-            state.resumeCandidateSessionId !== null
-              ? state.sessions.find(
-                  (session) =>
-                    session.id === state.resumeCandidateSessionId &&
-                    session.taskId === taskId,
-                )
-              : undefined;
-
-          const nextAuditEventId = createAuditEventId(state.sessions);
-          let sessions = state.sessions;
-          let sessionId: number;
-
-          if (resumableSession) {
-            sessionId = resumableSession.id;
-            sessions = state.sessions.map((session) =>
-              session.id === resumableSession.id
-                ? {
-                    ...session,
-                    endedAt: null,
-                    updatedAt: startedAt,
-                    auditEvents: [
-                      ...session.auditEvents,
-                      createAuditEvent(
-                        nextAuditEventId,
-                        "resumed",
-                        startedAt,
-                        "Session relancée immédiatement sur la même tâche.",
-                      ),
-                    ],
-                  }
-                : session,
-            );
-          } else {
-            sessionId = createSessionId(state.sessions);
-            sessions = [
-              ...state.sessions,
-              {
-                id: sessionId,
-                taskId,
-                origin: "timer",
-                startedAt,
-                endedAt: null,
-                date: toDateKey(startedAt),
-                segments: [],
-                auditEvents: [
-                  createAuditEvent(
-                    nextAuditEventId,
-                    "started",
-                    startedAt,
-                    "Chrono démarré.",
-                  ),
-                ],
-                createdAt: startedAt,
-                updatedAt: startedAt,
-              },
-            ];
-          }
-
-          return {
+      set((state) => {
+        const sessions = state.sessions.filter(
+          (session) => session.taskId !== taskId,
+        );
+        return {
+          tasks: syncTaskTotals(
+            state.tasks
+              .filter((task) => task.id !== taskId)
+              .map((task, index) => ({ ...task, position: index })),
             sessions,
-            activeTimer: {
-              taskId,
-              sessionId,
-              segmentStartTime: startedAt,
-              updatedAt: startedAt,
-            },
-            resumeCandidateSessionId: null,
-          };
-        });
-      },
-      stopTimer: (stoppedAt = new Date().toISOString()) => {
-        const activeTimer = get().activeTimer;
-        if (!activeTimer) {
-          return;
+          ),
+          sessions,
+          activeTimer:
+            state.activeTimer?.taskId === taskId ? null : state.activeTimer,
+          resumeCandidateSessionId:
+            state.resumeCandidateSessionId &&
+            sessions.some(
+              (session) => session.id === state.resumeCandidateSessionId,
+            )
+              ? state.resumeCandidateSessionId
+              : null,
+        };
+      });
+    } catch (error) {
+      set({
+        lastError: resolveErrorMessage(
+          error,
+          "Impossible de supprimer la tâche.",
+        ),
+      });
+    }
+  },
+  setTaskOrder: async (taskIds) => {
+    const apiClient = requireApiClient();
+    const currentTasks = [...get().tasks].sort(
+      (left, right) => left.position - right.position,
+    );
+    const reorderedTasks = applyTaskOrder(currentTasks, taskIds);
+    const currentPositions = new Map(
+      currentTasks.map((task) => [task.id, task.position]),
+    );
+    const changedTasks = reorderedTasks.filter(
+      (task) => currentPositions.get(task.id) !== task.position,
+    );
+
+    if (changedTasks.length === 0) {
+      return;
+    }
+
+    try {
+      const updatedTasks = await Promise.all(
+        changedTasks.map((task) =>
+          apiClient.tasks.update(task.id, { position: task.position }),
+        ),
+      );
+      const taskById = new Map(updatedTasks.map((task) => [task.id, task]));
+      set((state) => ({
+        tasks: reorderedTasks.map((task) => taskById.get(task.id) ?? task),
+      }));
+    } catch (error) {
+      set({
+        lastError: resolveErrorMessage(
+          error,
+          "Impossible de réorganiser les tâches.",
+        ),
+      });
+    }
+  },
+  reorderTasks: async (activeTaskId, overTaskId) => {
+    if (activeTaskId === overTaskId) {
+      return;
+    }
+
+    const ordered = [...get().tasks].sort(
+      (left, right) => left.position - right.position,
+    );
+    const activeIndex = ordered.findIndex((task) => task.id === activeTaskId);
+    const overIndex = ordered.findIndex((task) => task.id === overTaskId);
+    if (activeIndex < 0 || overIndex < 0) {
+      return;
+    }
+
+    const [moved] = ordered.splice(activeIndex, 1);
+    ordered.splice(overIndex, 0, moved);
+    await get().setTaskOrder(ordered.map((task) => task.id));
+  },
+  startTimer: async (taskId, startedAt = new Date().toISOString()) => {
+    const apiClient = requireApiClient();
+    const targetTask = get().tasks.find((task) => task.id === taskId);
+    if (!targetTask || !isTaskTrackable(targetTask)) {
+      return;
+    }
+
+    const current = get().activeTimer;
+    if (current?.taskId === taskId) {
+      return;
+    }
+    if (current) {
+      await get().stopTimer(startedAt);
+    }
+
+    const state = get();
+    const resumableSession =
+      state.resumeCandidateSessionId === null
+        ? undefined
+        : state.sessions.find(
+            (session) =>
+              session.id === state.resumeCandidateSessionId &&
+              session.taskId === taskId,
+          );
+
+    try {
+      const nextAuditEventId = createAuditEventId(state.sessions);
+      const session = resumableSession
+        ? await apiClient.sessions.update(resumableSession.id, {
+            endedAt: null,
+            auditEvents: [
+              ...resumableSession.auditEvents,
+              createAuditEvent(
+                nextAuditEventId,
+                "resumed",
+                startedAt,
+                "Session relancée immédiatement sur la même tâche.",
+              ),
+            ],
+          })
+        : await apiClient.sessions.create({
+            taskId,
+            origin: "timer",
+            startedAt,
+            endedAt: null,
+            date: toDateKey(startedAt),
+            segments: [],
+            auditEvents: [
+              createAuditEvent(
+                nextAuditEventId,
+                "started",
+                startedAt,
+                "Chrono démarré.",
+              ),
+            ],
+          });
+
+      const activeTimer = await apiClient.activeTimer.set({
+        taskId,
+        sessionId: session.id,
+        segmentStartTime: startedAt,
+      });
+
+      set((currentState) => ({
+        sessions: resumableSession
+          ? currentState.sessions.map((candidate) =>
+              candidate.id === session.id ? session : candidate,
+            )
+          : [...currentState.sessions, session],
+        activeTimer,
+        resumeCandidateSessionId: null,
+      }));
+    } catch (error) {
+      set({
+        lastError: resolveErrorMessage(
+          error,
+          "Impossible de démarrer le chrono.",
+        ),
+      });
+    }
+  },
+  stopTimer: async (stoppedAt = new Date().toISOString()) => {
+    const apiClient = requireApiClient();
+    const activeTimer = get().activeTimer;
+    if (!activeTimer) {
+      return;
+    }
+
+    const state = get();
+    const session = state.sessions.find(
+      (candidate) => candidate.id === activeTimer.sessionId,
+    );
+
+    try {
+      if (!session) {
+        await apiClient.activeTimer.delete();
+        set({ activeTimer: null, resumeCandidateSessionId: null });
+        return;
+      }
+
+      const durationSeconds = differenceInSeconds(
+        activeTimer.segmentStartTime,
+        stoppedAt,
+      );
+      if (durationSeconds === 0) {
+        await apiClient.activeTimer.delete();
+
+        if (session.origin === "timer" && session.segments.length === 0) {
+          await apiClient.sessions.delete(session.id);
         }
 
-        set((state) => {
-          const durationSeconds = differenceInSeconds(
+        set((currentState) => ({
+          activeTimer: null,
+          resumeCandidateSessionId: null,
+          sessions:
+            session.origin === "timer" && session.segments.length === 0
+              ? currentState.sessions.filter(
+                  (candidate) => candidate.id !== session.id,
+                )
+              : currentState.sessions,
+        }));
+        return;
+      }
+
+      const nextSegmentId = createSegmentId(state.sessions);
+      const nextAuditEventId = createAuditEventId(state.sessions);
+      const savedSession = await apiClient.sessions.update(session.id, {
+        endedAt: stoppedAt,
+        segments: [
+          ...session.segments,
+          createSessionSegment(
+            nextSegmentId,
             activeTimer.segmentStartTime,
             stoppedAt,
-          );
-          if (durationSeconds === 0) {
-            return {
-              activeTimer: null,
-              resumeCandidateSessionId: null,
-              sessions: state.sessions.filter(
-                (session) =>
-                  !(
-                    session.id === activeTimer.sessionId &&
-                    session.segments.length === 0 &&
-                    session.origin === "timer"
-                  ),
-              ),
-            };
-          }
-
-          const nextSegmentId = createSegmentId(state.sessions);
-          const nextAuditEventId = createAuditEventId(state.sessions);
-          const sessions = state.sessions.map((session) => {
-            if (session.id !== activeTimer.sessionId) {
-              return session;
-            }
-
-            return {
-              ...session,
-              endedAt: stoppedAt,
-              updatedAt: stoppedAt,
-              segments: [
-                ...session.segments,
-                createSessionSegment(
-                  nextSegmentId,
-                  activeTimer.segmentStartTime,
-                  stoppedAt,
-                ),
-              ],
-              auditEvents: [
-                ...session.auditEvents,
-                createAuditEvent(
-                  nextAuditEventId,
-                  "stopped",
-                  stoppedAt,
-                  "Chrono arrêté.",
-                ),
-              ],
-            };
-          });
-
-          return {
-            activeTimer: null,
-            sessions,
-            tasks: syncTaskTotals(
-              state.tasks.map((task) =>
-                task.id === activeTimer.taskId
-                  ? { ...task, updatedAt: stoppedAt }
-                  : task,
-              ),
-              sessions,
-            ),
-            resumeCandidateSessionId: activeTimer.sessionId,
-          };
-        });
-      },
-      toggleTimer: (taskId) => {
-        const current = get().activeTimer;
-        if (current?.taskId === taskId) {
-          get().stopTimer();
-          return;
-        }
-
-        get().startTimer(taskId);
-      },
-      addManualSession: (taskId, draft) => {
-        const normalized = normalizeSessionDraft(draft);
-        if (
-          differenceInSeconds(normalized.startTime, normalized.endTime) === 0
-        ) {
-          return;
-        }
-
-        set((state) => {
-          const nextSession = createManualSession(
-            state.sessions,
-            taskId,
-            normalized,
-          );
-          const sessions = [...state.sessions, nextSession];
-
-          return {
-            sessions,
-            tasks: syncTaskTotals(
-              state.tasks.map((task) =>
-                task.id === taskId
-                  ? { ...task, updatedAt: normalized.endTime }
-                  : task,
-              ),
-              sessions,
-            ),
-            resumeCandidateSessionId: null,
-          };
-        });
-      },
-      updateSession: (sessionId, draft) => {
-        const normalized = normalizeSessionDraft(draft);
-        if (
-          differenceInSeconds(normalized.startTime, normalized.endTime) === 0 ||
-          get().activeTimer?.sessionId === sessionId
-        ) {
-          return;
-        }
-
-        set((state) => {
-          const nextSegmentId = createSegmentId(state.sessions);
-          const nextAuditEventId = createAuditEventId(state.sessions);
-          const sessions = state.sessions.map((session) => {
-            if (session.id !== sessionId) {
-              return session;
-            }
-
-            return {
-              ...session,
-              startedAt: normalized.startTime,
-              endedAt: normalized.endTime,
-              date: toDateKey(normalized.startTime),
-              segments: [
-                createSessionSegment(
-                  nextSegmentId,
-                  normalized.startTime,
-                  normalized.endTime,
-                ),
-              ],
-              updatedAt: normalized.endTime,
-              auditEvents: [
-                ...session.auditEvents,
-                createAuditEvent(
-                  nextAuditEventId,
-                  "manually-edited",
-                  normalized.endTime,
-                  "Session modifiée manuellement.",
-                ),
-              ],
-            };
-          });
-
-          return {
-            sessions,
-            tasks: syncTaskTotals(state.tasks, sessions),
-            resumeCandidateSessionId: null,
-          };
-        });
-      },
-      deleteSession: (sessionId) => {
-        if (get().activeTimer?.sessionId === sessionId) {
-          set({ activeTimer: null });
-        }
-
-        set((state) => {
-          const sessions = state.sessions.filter(
-            (session) => session.id !== sessionId,
-          );
-          return {
-            sessions,
-            tasks: syncTaskTotals(state.tasks, sessions),
-            resumeCandidateSessionId:
-              state.resumeCandidateSessionId === sessionId
-                ? null
-                : state.resumeCandidateSessionId,
-          };
-        });
-      },
-      addTag: (name, color) => {
-        const trimmed = name.trim();
-        if (!trimmed) {
-          return;
-        }
-
-        set((state) => {
-          if (
-            state.tags.some(
-              (tag) => tag.name.toLowerCase() === trimmed.toLowerCase(),
-            )
-          ) {
-            return state;
-          }
-
-          return {
-            tags: [
-              ...state.tags,
-              {
-                id: createTagId(state.tags),
-                name: trimmed,
-                color,
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          };
-        });
-      },
-      updateTag: (tagId, patch) => {
-        const trimmed = patch.name.trim();
-        if (!trimmed) {
-          return;
-        }
-
-        set((state) => ({
-          tags: state.tags.map((tag) =>
-            tag.id === tagId
-              ? {
-                  ...tag,
-                  name: trimmed,
-                  color: patch.color,
-                }
-              : tag,
           ),
-        }));
-      },
-      deleteTag: (tagId) => {
-        set((state) => ({
-          tags: state.tags.filter((tag) => tag.id !== tagId),
-          tasks: state.tasks.map((task) => ({
-            ...task,
-            tagIds: task.tagIds.filter(
-              (currentTagId) => currentTagId !== tagId,
-            ),
-          })),
-          selectedTagIds: state.selectedTagIds.filter(
-            (currentTagId) => currentTagId !== tagId,
+        ],
+        auditEvents: [
+          ...session.auditEvents,
+          createAuditEvent(
+            nextAuditEventId,
+            "stopped",
+            stoppedAt,
+            "Chrono arrêté.",
           ),
-        }));
-      },
-      toggleTaskTag: (taskId, tagId) => {
-        set((state) => ({
-          tasks: state.tasks.map((task) => {
-            if (task.id !== taskId) {
-              return task;
-            }
+        ],
+      });
 
-            const hasTag = task.tagIds.includes(tagId);
-            return {
-              ...task,
-              tagIds: hasTag
-                ? task.tagIds.filter((currentTagId) => currentTagId !== tagId)
-                : [...task.tagIds, tagId],
-              updatedAt: new Date().toISOString(),
-            };
-          }),
+      await apiClient.activeTimer.delete();
+
+      set((currentState) => {
+        const sessions = currentState.sessions.map((candidate) =>
+          candidate.id === savedSession.id ? savedSession : candidate,
+        );
+
+        return {
+          sessions,
+          activeTimer: null,
+          tasks: syncTaskTotals(
+            currentState.tasks.map((task) =>
+              task.id === activeTimer.taskId
+                ? { ...task, updatedAt: stoppedAt }
+                : task,
+            ),
+            sessions,
+          ),
+          resumeCandidateSessionId: savedSession.id,
+        };
+      });
+    } catch (error) {
+      set({
+        lastError: resolveErrorMessage(
+          error,
+          "Impossible d’arrêter le chrono.",
+        ),
+      });
+    }
+  },
+  toggleTimer: async (taskId) => {
+    const current = get().activeTimer;
+    if (current?.taskId === taskId) {
+      await get().stopTimer();
+      return;
+    }
+
+    await get().startTimer(taskId);
+  },
+  addManualSession: async (taskId, draft) => {
+    const apiClient = requireApiClient();
+    const normalized = normalizeSessionDraft(draft);
+    if (differenceInSeconds(normalized.startTime, normalized.endTime) === 0) {
+      return;
+    }
+
+    try {
+      const nextSegmentId = createSegmentId(get().sessions);
+      const nextAuditEventId = createAuditEventId(get().sessions);
+      const session = await apiClient.sessions.create({
+        taskId,
+        origin: "manual",
+        startedAt: normalized.startTime,
+        endedAt: normalized.endTime,
+        date: toDateKey(normalized.startTime),
+        segments: [
+          createSessionSegment(
+            nextSegmentId,
+            normalized.startTime,
+            normalized.endTime,
+          ),
+        ],
+        auditEvents: [
+          createAuditEvent(
+            nextAuditEventId,
+            "manual-added",
+            normalized.endTime,
+            "Ajout manuel de temps.",
+          ),
+        ],
+      });
+
+      set((state) => {
+        const sessions = [...state.sessions, session];
+        return {
+          sessions,
+          tasks: syncTaskTotals(
+            state.tasks.map((task) =>
+              task.id === taskId
+                ? { ...task, updatedAt: normalized.endTime }
+                : task,
+            ),
+            sessions,
+          ),
           resumeCandidateSessionId: null,
-        }));
-      },
-      setSelectedTagIds: (tagIds) => set({ selectedTagIds: tagIds }),
-      setCurrentView: (view) => set({ currentView: view }),
-      moveReportWeek: (direction) =>
-        set((state) => ({
-          reportAnchor: shiftWeek(state.reportAnchor, direction),
+        };
+      });
+    } catch (error) {
+      set({
+        lastError: resolveErrorMessage(
+          error,
+          "Impossible d’ajouter la session.",
+        ),
+      });
+    }
+  },
+  updateSession: async (sessionId, draft) => {
+    const apiClient = requireApiClient();
+    const normalized = normalizeSessionDraft(draft);
+    if (
+      differenceInSeconds(normalized.startTime, normalized.endTime) === 0 ||
+      get().activeTimer?.sessionId === sessionId
+    ) {
+      return;
+    }
+
+    const session = get().sessions.find(
+      (candidate) => candidate.id === sessionId,
+    );
+    if (!session) {
+      return;
+    }
+
+    try {
+      const nextSegmentId = createSegmentId(get().sessions);
+      const nextAuditEventId = createAuditEventId(get().sessions);
+      const savedSession = await apiClient.sessions.update(sessionId, {
+        startedAt: normalized.startTime,
+        endedAt: normalized.endTime,
+        date: toDateKey(normalized.startTime),
+        segments: [
+          createSessionSegment(
+            nextSegmentId,
+            normalized.startTime,
+            normalized.endTime,
+          ),
+        ],
+        auditEvents: [
+          ...session.auditEvents,
+          createAuditEvent(
+            nextAuditEventId,
+            "manually-edited",
+            normalized.endTime,
+            "Session modifiée manuellement.",
+          ),
+        ],
+      });
+
+      set((state) => {
+        const sessions = state.sessions.map((candidate) =>
+          candidate.id === sessionId ? savedSession : candidate,
+        );
+        return {
+          sessions,
+          tasks: syncTaskTotals(state.tasks, sessions),
+          resumeCandidateSessionId: null,
+        };
+      });
+    } catch (error) {
+      set({
+        lastError: resolveErrorMessage(
+          error,
+          "Impossible de modifier la session.",
+        ),
+      });
+    }
+  },
+  deleteSession: async (sessionId) => {
+    const apiClient = requireApiClient();
+
+    try {
+      if (get().activeTimer?.sessionId === sessionId) {
+        await apiClient.activeTimer.delete();
+      }
+
+      await apiClient.sessions.delete(sessionId);
+
+      set((state) => {
+        const sessions = state.sessions.filter(
+          (session) => session.id !== sessionId,
+        );
+        return {
+          sessions,
+          activeTimer:
+            state.activeTimer?.sessionId === sessionId
+              ? null
+              : state.activeTimer,
+          tasks: syncTaskTotals(state.tasks, sessions),
+          resumeCandidateSessionId:
+            state.resumeCandidateSessionId === sessionId
+              ? null
+              : state.resumeCandidateSessionId,
+        };
+      });
+    } catch (error) {
+      set({
+        lastError: resolveErrorMessage(
+          error,
+          "Impossible de supprimer la session.",
+        ),
+      });
+    }
+  },
+  addTag: async (name, color) => {
+    const apiClient = requireApiClient();
+    const trimmed = name.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    if (
+      get().tags.some((tag) => tag.name.toLowerCase() === trimmed.toLowerCase())
+    ) {
+      return;
+    }
+
+    try {
+      const tag = await apiClient.tags.create({ name: trimmed, color });
+      set((state) => ({ tags: [...state.tags, tag] }));
+    } catch (error) {
+      set({
+        lastError: resolveErrorMessage(error, "Impossible de créer le tag."),
+      });
+    }
+  },
+  updateTag: async (tagId, patch) => {
+    const apiClient = requireApiClient();
+    const trimmed = patch.name.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    try {
+      const updatedTag = await apiClient.tags.update(tagId, {
+        name: trimmed,
+        color: patch.color,
+      });
+      set((state) => ({
+        tags: state.tags.map((tag) => (tag.id === tagId ? updatedTag : tag)),
+      }));
+    } catch (error) {
+      set({
+        lastError: resolveErrorMessage(error, "Impossible de modifier le tag."),
+      });
+    }
+  },
+  deleteTag: async (tagId) => {
+    const apiClient = requireApiClient();
+
+    try {
+      await apiClient.tags.delete(tagId);
+      set((state) => ({
+        tags: state.tags.filter((tag) => tag.id !== tagId),
+        tasks: state.tasks.map((task) => ({
+          ...task,
+          tagIds: task.tagIds.filter((currentTagId) => currentTagId !== tagId),
         })),
-      resetFilters: () => set({ selectedTagIds: [] }),
-    }),
-    {
-      name: timeTrackerStorageKey,
-      version: 2,
-      storage: createJSONStorage(() => resilientBrowserStorage),
-      migrate: (persistedState) => migratePersistedState(persistedState),
-    },
-  ),
-);
+        selectedTagIds: state.selectedTagIds.filter(
+          (currentTagId) => currentTagId !== tagId,
+        ),
+      }));
+    } catch (error) {
+      set({
+        lastError: resolveErrorMessage(
+          error,
+          "Impossible de supprimer le tag.",
+        ),
+      });
+    }
+  },
+  toggleTaskTag: async (taskId, tagId) => {
+    const apiClient = requireApiClient();
+    const task = get().tasks.find((candidate) => candidate.id === taskId);
+    if (!task) {
+      return;
+    }
+
+    const nextTagIds = task.tagIds.includes(tagId)
+      ? task.tagIds.filter((currentTagId) => currentTagId !== tagId)
+      : [...task.tagIds, tagId];
+
+    try {
+      const updatedTask = await apiClient.tasks.update(taskId, {
+        tagIds: nextTagIds,
+      });
+      set((state) => ({
+        tasks: state.tasks.map((candidate) =>
+          candidate.id === taskId ? updatedTask : candidate,
+        ),
+        resumeCandidateSessionId: null,
+      }));
+    } catch (error) {
+      set({
+        lastError: resolveErrorMessage(
+          error,
+          "Impossible de mettre à jour les tags de la tâche.",
+        ),
+      });
+    }
+  },
+  setSelectedTagIds: (tagIds) => set({ selectedTagIds: tagIds }),
+  setCurrentView: (view) => set({ currentView: view }),
+  moveReportWeek: (direction) =>
+    set((state) => ({
+      reportAnchor: shiftWeek(state.reportAnchor, direction),
+    })),
+  resetFilters: () => set({ selectedTagIds: [] }),
+}));
+
+export const setTimeTrackerApiClientForTesting = (
+  apiClient: TimeTrackerApiClient | null,
+): void => {
+  currentApiClient = apiClient;
+};
 
 export const resetTimeTrackerStore = (): void => {
+  currentApiClient = null;
   useTimeTrackerStore.setState(createInitialTimeTrackerData());
-  window.localStorage.removeItem(timeTrackerStorageKey);
-  void removePersistedSnapshot(timeTrackerStorageKey);
 };

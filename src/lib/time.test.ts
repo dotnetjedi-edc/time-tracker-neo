@@ -38,20 +38,20 @@ describe("time helpers", () => {
     const summary = summarizeWeek(
       [
         {
-          id: 1,
+          id: "1",
           name: "Focus",
           comment: null,
           totalTimeSeconds: 7200,
           position: 0,
-          tagIds: [1],
+          tagIds: ["1"],
           createdAt: "2026-03-20T10:00:00.000Z",
           updatedAt: "2026-03-20T10:00:00.000Z",
         },
       ],
       [
         {
-          id: 1,
-          taskId: 1,
+          id: "1",
+          taskId: "1",
           origin: "manual",
           startedAt: "2026-03-17T23:30:00.000Z",
           endedAt: "2026-03-18T00:30:00.000Z",
@@ -80,7 +80,7 @@ describe("time helpers", () => {
       [],
       [
         {
-          id: 1,
+          id: "1",
           name: "Client",
           color: "#ff885b",
           createdAt: "2026-03-20T10:00:00.000Z",

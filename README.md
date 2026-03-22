@@ -1,47 +1,92 @@
 # Time Tracker
 
-MVP local-first de suivi de temps personnel construit avec React, Vite, TypeScript, Tailwind CSS et Zustand.
+Application de suivi de temps construite avec React, Vite, TypeScript, Zustand, Clerk et des routes API Vercel persistées dans Turso/libSQL.
 
-## Inclus dans cette implémentation
+## Ce qui est en place
 
-- grille de grosses cartes de tâches tactile et réorganisable par drag and drop
-- un seul chrono actif à la fois avec mise à jour seconde par seconde
-- arrêt automatique du chrono lors d'un rechargement puis consolidation dans l'historique
-- CRUD des tâches et des tags
-- filtres multi-tags
-- rapport hebdomadaire avec totaux par jour et par semaine
-- persistance locale via localStorage pour pouvoir utiliser l'application immédiatement
+- authentification Clerk côté client et validation des bearer tokens côté API
+- persistance distante des tâches, tags, sessions et du chrono actif
+- store Zustand migré vers une couche API typée au lieu de `localStorage`
+- grille de cartes réorganisable, historique de sessions, saisie manuelle et rapport hebdomadaire
+- script d'initialisation de base via `npm run db:setup`
+- validation frontend avec Vitest unit + intégration
 
-## Démarrage
+## Variables d'environnement
+
+Copier `.env.local.example` vers `.env.local` puis renseigner les valeurs suivantes:
+
+```bash
+VITE_CLERK_PUBLISHABLE_KEY=
+CLERK_SECRET_KEY=
+TURSO_DATABASE_URL=
+TURSO_AUTH_TOKEN=
+```
+
+Règles:
+
+- `VITE_CLERK_PUBLISHABLE_KEY` est la seule valeur frontend-safe.
+- `CLERK_SECRET_KEY` et `TURSO_AUTH_TOKEN` restent strictement server-side.
+- `TURSO_AUTH_TOKEN` est facultatif uniquement pour une base locale (`file:`, `:memory:`, `http://127.0.0.1`, `http://localhost`).
+
+## Démarrage local
+
+1. Installer les dépendances.
+2. Configurer `.env.local`.
+3. Initialiser la base.
+4. Démarrer le serveur de développement complet.
 
 ```bash
 npm install
+npm run db:setup
 npm run dev
 ```
+
+`npm run dev` lance le frontend Vite et l'API Vercel en parallèle. Aucune récursion ni configuration complexe — une seule commande pour un environnement complet de développement.
 
 ## Scripts
 
 ```bash
-npm run dev
-npm run build
-npm run test
-npx playwright install chromium
-npm run test:unit
-npm run test:integration
-npm run test:e2e
-npm run test:all
+npm run dev           # Frontend + API (à utiliser pour le développement complet)
+npm run dev:api      # API Vercel uniquement
+npm run dev:frontend # Frontend Vite uniquement
+npm run build        # Compile l'application Vite et les routes API
+npm run db:setup     # Exécute le schéma de base de données
+npm run test         # Suite Vitest globale
+npm run test:unit    # Logique métier et store API-backed
+npm run test:integration # Parcours UI React avec auth/API mockés
+npm run test:e2e     # Scénarios Playwright
+npm run test:all     # Tous les tests (unit + intégration + E2E)
 ```
 
-`npm run test` exécute la suite Vitest globale.
+## Notes sur les scripts
 
-`npm run test:unit` cible la logique métier pure.
+- **`npm run dev`** : Lance le serveur Vercel qui gère à la fois l'API et le frontend (via Vite). C'est la commande recommandée pour le développement local complet. Aucune recursion, pas de complexité — une seule commande.
+- **`npm run dev:api`** : Lance uniquement l'API Vercel si vous avez déjà une instance frontend en démarrage ailleurs.
+- **`npm run dev:frontend`** : Lance uniquement Vite si vous testez le frontend sans les routes API.
 
-`npm run test:integration` valide les parcours UI React branchés au store.
+## CI/CD et déploiement
 
-`npm run test:e2e` valide les scénarios navigateur avec Playwright.
+Le workflow GitHub Actions attend les secrets suivants:
 
-`npm run test:all` enchaîne les trois niveaux pour une passe de régression complète.
+```bash
+VITE_CLERK_PUBLISHABLE_KEY
+VERCEL_TOKEN
+VERCEL_ORG_ID
+VERCEL_PROJECT_ID
+```
+
+Les secrets backend sensibles (`CLERK_SECRET_KEY`, `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`) doivent être configurés dans l'environnement Vercel du projet, pas injectés dans le bundle frontend.
+
+Comportement attendu:
+
+- `main` déploie la production.
+- `develop` déploie le staging.
+- les pull requests déclenchent un preview deploy après validation.
+- les déploiements restent bloqués tant que la build, les tests unitaires ou les tests d'intégration échouent.
 
 ## Notes d'architecture
 
-Cette base est volontairement exécutable sans backend pour livrer rapidement le MVP front. La couche métier correspond déjà à la spec et peut être branchée plus tard sur des fonctions Vercel et Turso en remplaçant la persistance locale par des appels API.
+- Les routes protégées passent toutes par `api/lib/auth.ts` et `api/lib/db.ts`.
+- Les routes CRUD vivent sous `api/tasks.ts`, `api/tags.ts`, `api/sessions.ts` et `api/active-timer.ts` avec leurs routes `[id]` associées.
+- `src/lib/api.ts` est la frontière typée entre React et le backend.
+- `src/store/useTimeTrackerStore.ts` conserve les invariants métier, notamment le chrono unique actif et la consolidation des sessions.

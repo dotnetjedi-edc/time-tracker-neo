@@ -8,7 +8,7 @@ interface WeeklyViewProps {
   tags: Tag[];
   sessions: TaskSession[];
   anchorDate: string;
-  selectedTagIds: number[];
+  selectedTagIds: string[];
   onMoveWeek: (direction: -1 | 1) => void;
 }
 

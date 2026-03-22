@@ -1,8 +1,8 @@
 import type { Task, TaskLifecycle, TaskSession } from "../types";
 
 export interface TaskSessionReportRecord {
-  sessionId: number;
-  taskId: number;
+  sessionId: string;
+  taskId: string;
   origin: TaskSession["origin"];
   date: string;
   startedAt: string;
@@ -12,7 +12,7 @@ export interface TaskSessionReportRecord {
 }
 
 export interface TaskReportSnapshot {
-  taskId: number;
+  taskId: string;
   taskName: string;
   lifecycleStatus: TaskLifecycle["status"];
   archivedAt: string | null;

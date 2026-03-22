@@ -3,7 +3,7 @@ title: "GitHub Actions CI/CD with Turso and Clerk Secrets"
 story_id: "5.5"
 story_key: "5-5-github-actions-cicd-with-turso-and-clerk-secrets"
 created: "2026-03-21"
-status: "ready-for-dev"
+status: "review"
 stepsCompleted: [1, 2, 3, 4]
 epic: "Epic 5: Backend Persistence & Multi-Device Sync"
 tech_stack:
@@ -31,7 +31,7 @@ test_patterns:
 
 ## Story 5.5: GitHub Actions CI/CD with Turso and Clerk Secrets
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -49,19 +49,19 @@ so that production, staging, and preview environments are repeatable and do not 
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Harden secret injection and environment separation in CI (AC: 1, 2, 4, 5)
-  - [ ] Update `.github/workflows/ci.yml` so required build-time and deploy-time secrets are present only where needed.
-  - [ ] Ensure both Clerk and Turso variables are available to the build or deploy steps that actually require them.
-  - [ ] Preserve the existing gate sequence so deploy depends on successful verification jobs.
+- [x] Task 1: Harden secret injection and environment separation in CI (AC: 1, 2, 4, 5)
+  - [x] Update `.github/workflows/ci.yml` so required build-time and deploy-time secrets are present only where needed.
+  - [x] Ensure both Clerk and Turso variables are available to the build or deploy steps that actually require them.
+  - [x] Preserve the existing gate sequence so deploy depends on successful verification jobs.
 
-- [ ] Task 2: Verify branch and PR deployment behavior (AC: 1, 2, 3)
-  - [ ] Confirm `main`, `develop`, and `pull_request` paths produce the intended Vercel target.
-  - [ ] Ensure preview deployment feedback is useful and not misleading if Vercel already comments separately.
-  - [ ] Avoid duplicate or contradictory PR comments about deployment state.
+- [x] Task 2: Verify branch and PR deployment behavior (AC: 1, 2, 3)
+  - [x] Confirm `main`, `develop`, and `pull_request` paths produce the intended Vercel target.
+  - [x] Ensure preview deployment feedback is useful and not misleading if Vercel already comments separately.
+  - [x] Avoid duplicate or contradictory PR comments about deployment state.
 
-- [ ] Task 3: Document CI environment expectations for maintainers (AC: 4)
-  - [ ] Refresh README or deployment notes with the required GitHub secrets and branch expectations.
-  - [ ] Clarify which variables are frontend-safe publishable values and which must remain server-only.
+- [x] Task 3: Document CI environment expectations for maintainers (AC: 4)
+  - [x] Refresh README or deployment notes with the required GitHub secrets and branch expectations.
+  - [x] Clarify which variables are frontend-safe publishable values and which must remain server-only.
 
 ## Dev Notes
 

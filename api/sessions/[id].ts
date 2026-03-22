@@ -1,88 +1,99 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { db } from "../lib/db";
-import { getAuthenticatedUserId } from "../lib/auth";
+import {
+  createRequestHandler,
+  createUserQueryHelper,
+  validateBody,
+  sendValidationError,
+  sendError,
+  sendSuccess,
+  mapSessionRow,
+} from "../lib";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const userId = await getAuthenticatedUserId(req);
-  if (!userId) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
+export default createRequestHandler(
+  async (req, res, userId) => {
+    const sessionId = Array.isArray(req.query.id)
+      ? req.query.id[0]
+      : (req.query.id as string | undefined);
 
-  const sessionId = req.query.id as string;
-  if (!sessionId) {
-    return res.status(400).json({ error: "Session ID required" });
-  }
-
-  // Verify ownership
-  const sessionResult = await db.execute(
-    "SELECT * FROM sessions WHERE id = ? AND user_id = ?",
-    [sessionId, userId],
-  );
-
-  if (sessionResult.rows.length === 0) {
-    return res.status(404).json({ error: "Session not found" });
-  }
-
-  if (req.method === "PUT") {
-    // Update session
-    const { started_at, ended_at, segments, audit_events } = req.body;
-
-    const updates: string[] = [];
-    const values: any[] = [];
-
-    if (started_at !== undefined) {
-      updates.push("started_at = ?");
-      values.push(started_at);
+    if (!sessionId) {
+      return sendError(res, 400, "Session ID required");
     }
-    if (ended_at !== undefined) {
-      updates.push("ended_at = ?");
-      values.push(ended_at);
+
+    const query = createUserQueryHelper(userId);
+    const session = await query.fetchById("sessions", sessionId);
+
+    if (!session) {
+      return sendError(res, 404, "Session not found");
     }
-    if (segments !== undefined) {
-      updates.push("segments = ?");
-      values.push(JSON.stringify(segments));
+
+    if (req.method === "PUT") {
+      const validated = validateBody(req.body, {
+        started_at: { type: "string", required: false, minLength: 1 },
+        ended_at: { type: "string", required: false },
+        date: { type: "string", required: false, minLength: 1 },
+        segments: { type: "object", required: false },
+        audit_events: { type: "object", required: false },
+      });
+
+      if (!validated) {
+        return sendValidationError(res, [
+          { field: "body", message: "Invalid request body" },
+        ]);
+      }
+
+      const updates: Record<string, unknown> = {};
+      if (validated.started_at !== undefined)
+        updates.started_at = validated.started_at;
+      if (validated.ended_at !== undefined) updates.ended_at = validated.ended_at;
+      if (validated.date !== undefined) updates.date = validated.date;
+      if (validated.segments !== undefined)
+        updates.segments = JSON.stringify(validated.segments);
+      if (validated.audit_events !== undefined)
+        updates.audit_events = JSON.stringify(validated.audit_events);
+
+      if (Object.keys(updates).length === 0) {
+        return sendError(res, 400, "No fields to update");
+      }
+
+      await query.updateById("sessions", sessionId, updates);
+      const updated = await query.fetchById("sessions", sessionId);
+      return sendSuccess(res, mapSessionRow(updated));
     }
-    if (audit_events !== undefined) {
-      updates.push("audit_events = ?");
-      values.push(JSON.stringify(audit_events));
+
+    if (req.method === "DELETE") {
+      await query.deleteById("sessions", sessionId);
+      return res.status(204).end();
+    }
+  },
+  { allowedMethods: ["PUT", "DELETE"] },
+);
     }
 
     updates.push("updated_at = ?");
     values.push(new Date().toISOString());
-    values.push(sessionId);
+    values.push(sessionId, userId);
 
-    if (updates.length > 1) {
-      await db.execute(
-        `UPDATE sessions SET ${updates.join(", ")} WHERE id = ?`,
-        values,
-      );
-    }
+    await db.execute(
+      `UPDATE sessions SET ${updates.join(", ")} WHERE id = ? AND user_id = ?`,
+      values,
+    );
 
     const updated = await db.execute("SELECT * FROM sessions WHERE id = ?", [
       sessionId,
     ]);
-    const row = updated.rows[0] as any;
-
-    return res.status(200).json({
-      id: row.id,
-      user_id: row.user_id,
-      task_id: row.task_id,
-      origin: row.origin,
-      started_at: row.started_at,
-      ended_at: row.ended_at,
-      date: row.date,
-      segments: JSON.parse(row.segments || "[]"),
-      audit_events: JSON.parse(row.audit_events || "[]"),
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    });
+    return res.status(200).json(mapSessionRow(updated.rows[0] as never));
   }
 
   if (req.method === "DELETE") {
-    // Delete session
-    await db.execute("DELETE FROM sessions WHERE id = ?", [sessionId]);
+    await db.execute(
+      "DELETE FROM active_timers WHERE user_id = ? AND session_id = ?",
+      [userId, sessionId],
+    );
+    await db.execute("DELETE FROM sessions WHERE id = ? AND user_id = ?", [
+      sessionId,
+      userId,
+    ]);
     return res.status(204).end();
   }
 
-  return res.status(405).json({ error: "Method not allowed" });
+  return sendMethodNotAllowed(res, ["PUT", "DELETE", "OPTIONS"]);
 }

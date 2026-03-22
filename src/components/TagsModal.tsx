@@ -6,9 +6,13 @@ interface TagsModalProps {
   isOpen: boolean;
   tags: Tag[];
   onClose: () => void;
-  onCreate: (name: string, color: string) => void;
-  onUpdate: (tagId: number, name: string, color: string) => void;
-  onDelete: (tagId: number) => void;
+  onCreate: (name: string, color: string) => void | Promise<void>;
+  onUpdate: (
+    tagId: string,
+    name: string,
+    color: string,
+  ) => void | Promise<void>;
+  onDelete: (tagId: string) => void | Promise<void>;
 }
 
 const palette = [...tagPalette];
@@ -119,8 +123,12 @@ export function TagsModal({
 interface TagEditorRowProps {
   tag: Tag;
   palette: string[];
-  onUpdate: (tagId: number, name: string, color: string) => void;
-  onDelete: (tagId: number) => void;
+  onUpdate: (
+    tagId: string,
+    name: string,
+    color: string,
+  ) => void | Promise<void>;
+  onDelete: (tagId: string) => void | Promise<void>;
 }
 
 function TagEditorRow({ tag, palette, onUpdate, onDelete }: TagEditorRowProps) {

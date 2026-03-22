@@ -3,7 +3,7 @@ title: "Tasks and Tags API Endpoints"
 story_id: "5.2"
 story_key: "5-2-tasks-and-tags-api-endpoints"
 created: "2026-03-21"
-status: "ready-for-dev"
+status: "review"
 stepsCompleted: [1, 2, 3, 4]
 epic: "Epic 5: Backend Persistence & Multi-Device Sync"
 tech_stack:
@@ -38,7 +38,7 @@ test_patterns:
 
 ## Story 5.2: Tasks and Tags API Endpoints
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -56,20 +56,20 @@ so that my workspace state persists across restarts and remains available on any
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Complete collection endpoints for tasks and tags (AC: 1, 3, 5)
-  - [ ] Verify `api/tasks.ts` and `api/tags.ts` validate payloads before writing to the database.
-  - [ ] Keep task ordering stable by preserving `position` semantics on create and list operations.
-  - [ ] Normalize JSON-backed fields such as `tag_ids` on both read and write paths.
+- [x] Task 1: Complete collection endpoints for tasks and tags (AC: 1, 3, 5)
+  - [x] Verify `api/tasks.ts` and `api/tags.ts` validate payloads before writing to the database.
+  - [x] Keep task ordering stable by preserving `position` semantics on create and list operations.
+  - [x] Normalize JSON-backed fields such as `tag_ids` on both read and write paths.
 
-- [ ] Task 2: Complete item endpoints for tasks and tags (AC: 2, 3, 4)
-  - [ ] Ensure `api/tasks/[id].ts` supports update and delete with ownership checks.
-  - [ ] Ensure `api/tags/[id].ts` supports update and delete with ownership checks.
-  - [ ] Define task-delete cascade behavior clearly so related sessions are removed or rejected consistently with the Epic 5 data model.
+- [x] Task 2: Complete item endpoints for tasks and tags (AC: 2, 3, 4)
+  - [x] Ensure `api/tasks/[id].ts` supports update and delete with ownership checks.
+  - [x] Ensure `api/tags/[id].ts` supports update and delete with ownership checks.
+  - [x] Define task-delete cascade behavior clearly so related sessions are removed or rejected consistently with the Epic 5 data model.
 
-- [ ] Task 3: Add regression coverage for validation and data isolation (AC: 1, 2, 3, 4, 5)
-  - [ ] Cover missing-name and malformed-payload cases for task and tag creation.
-  - [ ] Cover cross-user access rejection on update and delete routes.
-  - [ ] Cover task ordering and tag-id JSON round-tripping on list and update flows.
+- [x] Task 3: Add regression coverage for validation and data isolation (AC: 1, 2, 3, 4, 5)
+  - [x] Cover missing-name and malformed-payload cases for task and tag creation.
+  - [x] Cover cross-user access rejection on update and delete routes.
+  - [x] Cover task ordering and tag-id JSON round-tripping on list and update flows.
 
 ## Dev Notes
 

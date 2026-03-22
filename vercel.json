@@ -1,5 +1,7 @@
 {
   "version": 2,
+  "packageManager": "npm@latest",
+  "devCommand": "node scripts/vercel-dev-command.js",
   "rewrites": [
     {
       "source": "/api/(.*)",
@@ -28,10 +30,5 @@
         }
       ]
     }
-  ],
-  "functions": {
-    "api/**/*.ts": {
-      "runtime": "nodejs20.x"
-    }
-  }
+  ]
 }

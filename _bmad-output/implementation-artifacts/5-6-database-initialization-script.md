@@ -3,7 +3,7 @@ title: "Database Initialization Script"
 story_id: "5.6"
 story_key: "5-6-database-initialization-script"
 created: "2026-03-21"
-status: "ready-for-dev"
+status: "review"
 stepsCompleted: [1, 2, 3, 4]
 epic: "Epic 5: Backend Persistence & Multi-Device Sync"
 tech_stack: ["TypeScript", "tsx", "dotenv", "Turso libSQL", "Node.js"]
@@ -24,7 +24,7 @@ test_patterns:
 
 ## Story 5.6: Database Initialization Script
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -41,18 +41,18 @@ so that a fresh local or hosted Turso database can be initialized without manual
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Finalize the setup script execution path (AC: 1, 2, 3)
-  - [ ] Ensure `scripts/setup-db.ts` reads `api/lib/schema.sql` and executes statements safely.
-  - [ ] Make repeated runs idempotent by relying on `IF NOT EXISTS` semantics in the schema.
-  - [ ] Emit clear failures for missing database URL, auth token, or schema load problems.
+- [x] Task 1: Finalize the setup script execution path (AC: 1, 2, 3)
+  - [x] Ensure `scripts/setup-db.ts` reads `api/lib/schema.sql` and executes statements safely.
+  - [x] Make repeated runs idempotent by relying on `IF NOT EXISTS` semantics in the schema.
+  - [x] Emit clear failures for missing database URL, auth token, or schema load problems.
 
-- [ ] Task 2: Keep schema ownership centralized and maintainable (AC: 1, 2)
-  - [ ] Ensure `api/lib/schema.sql` is the single source of truth used by both API development and setup tooling.
-  - [ ] Keep schema changes aligned with the task, tag, session, and active-timer models used elsewhere in Epic 5.
+- [x] Task 2: Keep schema ownership centralized and maintainable (AC: 1, 2)
+  - [x] Ensure `api/lib/schema.sql` is the single source of truth used by both API development and setup tooling.
+  - [x] Keep schema changes aligned with the task, tag, session, and active-timer models used elsewhere in Epic 5.
 
-- [ ] Task 3: Document developer setup expectations (AC: 4)
-  - [ ] Confirm `package.json` exposes the setup command with the expected runtime.
-  - [ ] Add concise setup instructions to README or backend setup notes for local and hosted usage.
+- [x] Task 3: Document developer setup expectations (AC: 4)
+  - [x] Confirm `package.json` exposes the setup command with the expected runtime.
+  - [x] Add concise setup instructions to README or backend setup notes for local and hosted usage.
 
 ## Dev Notes
 

@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   segments       TEXT    NOT NULL DEFAULT '[]',      -- JSON array of SessionSegment
   audit_events   TEXT    NOT NULL DEFAULT '[]',      -- JSON array of SessionAuditEvent
   created_at     TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at     TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE CASCADE
 );
 

@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  ClerkLoaded,
+  ClerkLoading,
+  SignIn,
+  SignedIn,
+  SignedOut,
+  useAuth,
+} from "@clerk/clerk-react";
+import { useEffect, useEffectEvent, useMemo, useState } from "react";
 import type { Task, TaskDraft } from "./types";
 import { Header } from "./components/Header";
 import { TaskGrid } from "./components/TaskGrid";
@@ -6,14 +14,12 @@ import { TaskModal } from "./components/TaskModal";
 import { TaskSessionsModal } from "./components/TaskSessionsModal";
 import { TagsModal } from "./components/TagsModal";
 import { WeeklyView } from "./components/WeeklyView";
-import { recoverPersistedSnapshot } from "./lib/persistenceStorage";
+import { createTimeTrackerApiClient } from "./lib/api";
 import { differenceInSeconds, formatDateTime } from "./lib/time";
-import {
-  timeTrackerStorageKey,
-  useTimeTrackerStore,
-} from "./store/useTimeTrackerStore";
+import { useTimeTrackerStore } from "./store/useTimeTrackerStore";
 
-export default function App() {
+function AuthenticatedWorkspace() {
+  const { getToken, isLoaded, userId } = useAuth();
   const tasks = useTimeTrackerStore((state) => state.tasks);
   const tags = useTimeTrackerStore((state) => state.tags);
   const sessions = useTimeTrackerStore((state) => state.sessions);
@@ -41,6 +47,13 @@ export default function App() {
   const setCurrentView = useTimeTrackerStore((state) => state.setCurrentView);
   const moveReportWeek = useTimeTrackerStore((state) => state.moveReportWeek);
   const resetFilters = useTimeTrackerStore((state) => state.resetFilters);
+  const initialize = useTimeTrackerStore((state) => state.initialize);
+  const reloadWorkspace = useTimeTrackerStore((state) => state.reloadWorkspace);
+  const clearWorkspace = useTimeTrackerStore((state) => state.clearWorkspace);
+  const dismissError = useTimeTrackerStore((state) => state.dismissError);
+  const isLoading = useTimeTrackerStore((state) => state.isLoading);
+  const isInitialized = useTimeTrackerStore((state) => state.isInitialized);
+  const lastError = useTimeTrackerStore((state) => state.lastError);
 
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [tagsModalOpen, setTagsModalOpen] = useState(false);
@@ -57,21 +70,21 @@ export default function App() {
     return () => window.clearInterval(timerId);
   }, []);
 
+  const initializeWorkspace = useEffectEvent(async () => {
+    await initialize(createTimeTrackerApiClient(getToken));
+  });
+
   useEffect(() => {
-    let cancelled = false;
+    if (!isLoaded || !userId) {
+      return;
+    }
 
-    void recoverPersistedSnapshot(timeTrackerStorageKey).then((recovered) => {
-      if (!recovered || cancelled) {
-        return;
-      }
-
-      void useTimeTrackerStore.persist.rehydrate();
-    });
+    void initializeWorkspace();
 
     return () => {
-      cancelled = true;
+      clearWorkspace();
     };
-  }, []);
+  }, [clearWorkspace, isLoaded, userId]);
 
   const filteredTasks = useMemo(() => {
     const ordered = [...tasks].sort(
@@ -86,7 +99,7 @@ export default function App() {
     );
   }, [selectedTagIds, tasks]);
 
-  const liveTotals = useMemo(() => {
+  const liveTotals = useMemo<Record<string, number>>(() => {
     return Object.fromEntries(
       tasks.map((task) => {
         if (activeTimer?.taskId !== task.id) {
@@ -151,14 +164,14 @@ export default function App() {
 
   const handleSaveTask = (draft: TaskDraft) => {
     if (editingTask) {
-      updateTask(editingTask.id, draft);
+      void updateTask(editingTask.id, draft);
       return;
     }
 
-    addTask(draft);
+    void addTask(draft);
   };
 
-  const toggleSelectedTag = (tagId: number) => {
+  const toggleSelectedTag = (tagId: string) => {
     setSelectedTagIds(
       selectedTagIds.includes(tagId)
         ? selectedTagIds.filter((currentTagId) => currentTagId !== tagId)
@@ -176,9 +189,52 @@ export default function App() {
     ? sessions.filter((session) => session.taskId === sessionTask.id)
     : [];
 
+  if (isLoading && !isInitialized) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,_rgba(255,136,91,0.22),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(110,214,181,0.2),_transparent_25%),linear-gradient(180deg,_#f7f0e5_0%,_#f2f4f7_100%)] px-6 text-ink">
+        <div className="rounded-[2rem] border border-white/60 bg-white/80 px-8 py-10 text-center shadow-card backdrop-blur">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-ink/45">
+            Synchronisation
+          </p>
+          <h1 className="mt-3 font-serif text-3xl text-ink">
+            Chargement de votre espace
+          </h1>
+          <p className="mt-2 text-sm text-ink/60">
+            Les tâches, tags, sessions et le chrono actif sont chargés depuis
+            l’API.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,136,91,0.22),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(110,214,181,0.2),_transparent_25%),linear-gradient(180deg,_#f7f0e5_0%,_#f2f4f7_100%)] text-ink">
       <div className="mx-auto flex min-h-screen w-full max-w-[1700px] flex-col gap-5 px-3 py-4 sm:gap-6 sm:px-5 sm:py-5 lg:px-8 lg:py-6">
+        {lastError ? (
+          <div className="rounded-[1.25rem] border border-red-200 bg-white/90 px-4 py-3 text-sm text-red-700 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p>{lastError}</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => void reloadWorkspace()}
+                  className="rounded-full border border-red-200 px-4 py-2 font-semibold text-red-700 transition hover:bg-red-50"
+                >
+                  Réessayer
+                </button>
+                <button
+                  type="button"
+                  onClick={dismissError}
+                  className="rounded-full border border-ink/10 px-4 py-2 font-semibold text-ink/65 transition hover:border-ink/30 hover:text-ink"
+                >
+                  Fermer
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <Header
           currentView={currentView}
           selectedTagIds={selectedTagIds}
@@ -190,7 +246,7 @@ export default function App() {
           onOpenTags={() => setTagsModalOpen(true)}
           onSelectTag={toggleSelectedTag}
           onResetFilters={resetFilters}
-          onStopActiveTimer={() => stopTimer(new Date().toISOString())}
+          onStopActiveTimer={() => void stopTimer(new Date().toISOString())}
         />
 
         <main className="space-y-6">
@@ -200,7 +256,7 @@ export default function App() {
               tags={tags}
               activeTaskId={activeTimer?.taskId ?? null}
               liveTotals={liveTotals}
-              onToggleTimer={toggleTimer}
+              onToggleTimer={(taskId) => void toggleTimer(taskId)}
               onEditTask={(task) => {
                 setEditingTask(task);
                 setTaskModalOpen(true);
@@ -211,7 +267,7 @@ export default function App() {
                 setEditingTask(null);
                 setTaskModalOpen(true);
               }}
-              onReorder={setTaskOrder}
+              onReorder={(taskIds) => void setTaskOrder(taskIds)}
             />
           ) : (
             <WeeklyView
@@ -239,7 +295,7 @@ export default function App() {
         onDelete={
           editingTask
             ? () => {
-                deleteTask(editingTask.id);
+                void deleteTask(editingTask.id);
                 setTaskModalOpen(false);
                 setEditingTask(null);
               }
@@ -251,9 +307,11 @@ export default function App() {
         isOpen={tagsModalOpen}
         tags={tags}
         onClose={() => setTagsModalOpen(false)}
-        onCreate={addTag}
-        onUpdate={(tagId, name, color) => updateTag(tagId, { name, color })}
-        onDelete={deleteTag}
+        onCreate={(name, color) => void addTag(name, color)}
+        onUpdate={(tagId, name, color) =>
+          void updateTag(tagId, { name, color })
+        }
+        onDelete={(tagId) => void deleteTag(tagId)}
       />
 
       <TaskSessionsModal
@@ -266,10 +324,62 @@ export default function App() {
           setSessionsModalOpen(false);
           setSessionTask(null);
         }}
-        onCreate={addManualSession}
-        onUpdate={updateSession}
-        onDelete={deleteSession}
+        onCreate={(taskId, draft) => void addManualSession(taskId, draft)}
+        onUpdate={(sessionId, draft) => void updateSession(sessionId, draft)}
+        onDelete={(sessionId) => void deleteSession(sessionId)}
       />
     </div>
+  );
+}
+
+function SignedOutScreen() {
+  const clearWorkspace = useTimeTrackerStore((state) => state.clearWorkspace);
+
+  useEffect(() => {
+    clearWorkspace();
+  }, [clearWorkspace]);
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,_rgba(255,136,91,0.22),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(110,214,181,0.2),_transparent_25%),linear-gradient(180deg,_#f7f0e5_0%,_#f2f4f7_100%)] px-4 py-10 text-ink">
+      <div className="w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/60 bg-white/82 shadow-card backdrop-blur lg:grid lg:grid-cols-[1.1fr_0.9fr]">
+        <section className="border-b border-ink/8 px-6 py-8 lg:border-b-0 lg:border-r lg:px-10 lg:py-12">
+          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-ink/45">
+            Time Tracker
+          </p>
+          <h1 className="mt-4 font-serif text-4xl leading-tight text-ink sm:text-5xl">
+            Suivi de temps synchronisé, sans friction.
+          </h1>
+          <p className="mt-4 max-w-xl text-base text-ink/65 sm:text-lg">
+            Connectez-vous pour récupérer vos tâches, vos tags, votre historique
+            de sessions et votre chrono actif depuis l’API sécurisée.
+          </p>
+        </section>
+        <section className="bg-mist/35 px-6 py-8 lg:px-10 lg:py-12">
+          <SignIn routing="hash" />
+        </section>
+      </div>
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <>
+      <ClerkLoading>
+        <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,_rgba(255,136,91,0.22),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(110,214,181,0.2),_transparent_25%),linear-gradient(180deg,_#f7f0e5_0%,_#f2f4f7_100%)] px-6 text-ink">
+          <p className="rounded-full border border-white/60 bg-white/80 px-5 py-3 text-sm font-semibold shadow-card backdrop-blur">
+            Initialisation de l’authentification…
+          </p>
+        </div>
+      </ClerkLoading>
+      <ClerkLoaded>
+        <SignedIn>
+          <AuthenticatedWorkspace />
+        </SignedIn>
+        <SignedOut>
+          <SignedOutScreen />
+        </SignedOut>
+      </ClerkLoaded>
+    </>
   );
 }

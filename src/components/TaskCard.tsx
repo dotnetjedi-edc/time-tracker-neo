@@ -23,7 +23,7 @@ interface TaskCardProps {
   taskTags: Tag[];
   isActive: boolean;
   liveSeconds: number;
-  onToggleTimer: (taskId: number) => void;
+  onToggleTimer: (taskId: string) => void | Promise<void>;
   onEdit: (task: Task) => void;
   onOpenManualTime: (task: Task) => void;
   onOpenHistory: (task: Task) => void;
@@ -288,7 +288,7 @@ export function TaskCard({
     }, 0);
   };
 
-  const handleToggleTimer = (taskId: number) => {
+  const handleToggleTimer = (taskId: string) => {
     if (suppressClickRef.current) {
       return;
     }

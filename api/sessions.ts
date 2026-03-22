@@ -1,114 +1,93 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { db } from "./lib/db";
-import { getAuthenticatedUserId } from "./lib/auth";
+import {
+  createRequestHandler,
+  createUserQueryHelper,
+  validateBody,
+  sendValidationError,
+  sendError,
+  sendSuccess,
+  mapSessionRow,
+  getDb,
+} from "./lib";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const userId = await getAuthenticatedUserId(req);
-  if (!userId) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
+const isSessionOrigin = (value: unknown): value is "timer" | "manual" =>
+  value === "timer" || value === "manual";
 
-  if (req.method === "GET") {
-    // List sessions, optionally filtered by taskId
-    const taskId = req.query.taskId as string | undefined;
+export default createRequestHandler(
+  async (req, res, userId) => {
+    const query = createUserQueryHelper(userId);
 
-    let query = "SELECT * FROM sessions WHERE user_id = ?";
-    let params: any[] = [userId];
+    if (req.method === "GET") {
+      const taskId = Array.isArray(req.query.taskId)
+        ? req.query.taskId[0]
+        : (req.query.taskId as string | undefined);
 
-    if (taskId) {
-      query += " AND task_id = ?";
-      params.push(taskId);
+      if (taskId) {
+        // Verify task exists
+        const task = await query.fetchById("tasks", taskId);
+        if (!task) {
+          return sendError(res, 404, "Task not found");
+        }
+
+        const { rows } = await query.fetch(
+          "sessions",
+          "task_id = ?",
+          [taskId],
+          "started_at DESC",
+        );
+        return sendSuccess(res, rows.map(mapSessionRow));
+      }
+
+      const { rows } = await query.fetchAll(
+        "sessions",
+        "started_at DESC, created_at DESC",
+      );
+      return sendSuccess(res, rows.map(mapSessionRow));
     }
 
-    query += " ORDER BY created_at DESC";
-
-    const result = await db.execute(query, params);
-
-    const formattedSessions = result.rows.map((row: any) => ({
-      id: row.id,
-      user_id: row.user_id,
-      task_id: row.task_id,
-      origin: row.origin,
-      started_at: row.started_at,
-      ended_at: row.ended_at,
-      date: row.date,
-      segments: JSON.parse(row.segments || "[]"),
-      audit_events: JSON.parse(row.audit_events || "[]"),
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    }));
-
-    return res.status(200).json(formattedSessions);
-  }
-
-  if (req.method === "POST") {
-    // Create new session
-    const {
-      task_id,
-      origin,
-      started_at,
-      ended_at,
-      date,
-      segments,
-      audit_events,
-    } = req.body;
-
-    if (!task_id || !origin || !started_at || !date) {
-      return res.status(400).json({
-        error: "Missing required fields: task_id, origin, started_at, date",
+    if (req.method === "POST") {
+      const validated = validateBody(req.body, {
+        task_id: { type: "string", required: true },
+        origin: {
+          type: "string",
+          required: true,
+          validate: isSessionOrigin,
+        },
+        started_at: { type: "string", required: true },
+        ended_at: { type: "string", required: false },
+        date: { type: "string", required: true },
+        segments: { type: "object", required: false },
+        audit_events: { type: "object", required: false },
       });
+
+      if (!validated) {
+        return sendValidationError(res, [
+          { field: "body", message: "Invalid request body" },
+        ]);
+      }
+
+      // Verify task exists
+      const task = await query.fetchById("tasks", validated.task_id as string);
+      if (!task) {
+        return sendError(res, 404, "Task not found");
+      }
+
+      const sessionId = await query.insert("sessions", {
+        task_id: validated.task_id,
+        origin: validated.origin,
+        started_at: validated.started_at,
+        ended_at: validated.ended_at ?? null,
+        date: validated.date,
+        segments: JSON.stringify(validated.segments ?? []),
+        audit_events: JSON.stringify(validated.audit_events ?? []),
+      });
+
+      const session = await query.fetchById("sessions", sessionId);
+      if (!session) {
+        return sendError(res, 500, "Failed to create session");
+      }
+
+      return sendSuccess(res, mapSessionRow(session), 201);
     }
-
-    // Verify task belongs to user
-    const taskCheck = await db.execute(
-      "SELECT id FROM tasks WHERE id = ? AND user_id = ?",
-      [task_id, userId],
-    );
-
-    if (taskCheck.rows.length === 0) {
-      return res.status(403).json({ error: "Task not found or access denied" });
-    }
-
-    const id = crypto.randomUUID();
-    const now = new Date().toISOString();
-
-    await db.execute(
-      `INSERT INTO sessions (id, user_id, task_id, origin, started_at, ended_at, date, segments, audit_events, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        userId,
-        task_id,
-        origin,
-        started_at,
-        ended_at || null,
-        date,
-        JSON.stringify(segments || []),
-        JSON.stringify(audit_events || []),
-        now,
-        now,
-      ],
-    );
-
-    const newSession = await db.execute("SELECT * FROM sessions WHERE id = ?", [
-      id,
-    ]);
-    const row = newSession.rows[0] as any;
-
-    return res.status(201).json({
-      id: row.id,
-      user_id: row.user_id,
-      task_id: row.task_id,
-      origin: row.origin,
-      started_at: row.started_at,
-      ended_at: row.ended_at,
-      date: row.date,
-      segments: JSON.parse(row.segments || "[]"),
-      audit_events: JSON.parse(row.audit_events || "[]"),
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    });
-  }
-
-  return res.status(405).json({ error: "Method not allowed" });
-}
+  },
+  { allowedMethods: ["GET", "POST"] },
+);

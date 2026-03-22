@@ -39,13 +39,13 @@ development_status:
   4-2-prepare-ui-interaction-boundaries-for-future-shortcuts-and-advanced-actions: skipped
   epic-4-retrospective: optional
 
-  epic-5: planned
-  5-1-vercel-api-routes-with-turso-connection: backlog
-  5-2-tasks-and-tags-api-endpoints: backlog
-  5-3-sessions-and-active-timer-api-endpoints: backlog
-  5-4-frontend-store-migration-to-api-layer: backlog
-  5-5-github-actions-cicd-with-turso-and-clerk-secrets: backlog
-  5-6-database-initialization-script: backlog
+  epic-5: review
+  5-1-vercel-api-routes-with-turso-connection: review
+  5-2-tasks-and-tags-api-endpoints: review
+  5-3-sessions-and-active-timer-api-endpoints: review
+  5-4-frontend-store-migration-to-api-layer: review
+  5-5-github-actions-cicd-with-turso-and-clerk-secrets: review
+  5-6-database-initialization-script: review
   epic-5-retrospective: optional
 
   epic-6: planned

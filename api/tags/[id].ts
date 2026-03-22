@@ -1,91 +1,100 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { db } from "../lib/db";
-import { getAuthenticatedUserId } from "../lib/auth";
+import {
+  createRequestHandler,
+  createUserQueryHelper,
+  validateBody,
+  sendValidationError,
+  sendError,
+  sendSuccess,
+  mapTagRow,
+} from "../lib";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const userId = await getAuthenticatedUserId(req);
-  if (!userId) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
+export default createRequestHandler(
+  async (req, res, userId) => {
+    const tagId = Array.isArray(req.query.id)
+      ? req.query.id[0]
+      : (req.query.id as string | undefined);
 
-  const tagId = req.query.id as string;
-  if (!tagId) {
-    return res.status(400).json({ error: "Tag ID required" });
-  }
-
-  // Verify ownership
-  const tagResult = await db.execute(
-    "SELECT * FROM tags WHERE id = ? AND user_id = ?",
-    [tagId, userId],
-  );
-
-  if (tagResult.rows.length === 0) {
-    return res.status(404).json({ error: "Tag not found" });
-  }
-
-  if (req.method === "PUT") {
-    // Update tag
-    const { name, color } = req.body;
-
-    const updates: string[] = [];
-    const values: any[] = [];
-
-    if (name !== undefined) {
-      updates.push("name = ?");
-      values.push(name);
-    }
-    if (color !== undefined) {
-      updates.push("color = ?");
-      values.push(color);
+    if (!tagId) {
+      return sendError(res, 400, "Tag ID required");
     }
 
-    if (updates.length === 0) {
-      return res.status(400).json({ error: "No fields to update" });
+    const query = createUserQueryHelper(userId);
+    const tag = await query.fetchById("tags", tagId);
+
+    if (!tag) {
+      return sendError(res, 404, "Tag not found");
     }
 
-    values.push(tagId);
+    if (req.method === "PUT") {
+      const validated = validateBody(req.body, {
+        name: { type: "string", required: false, minLength: 1 },
+        color: { type: "string", required: false, minLength: 1 },
+      });
 
-    await db.execute(
-      `UPDATE tags SET ${updates.join(", ")} WHERE id = ?`,
-      values,
-    );
+      if (!validated) {
+        return sendValidationError(res, [
+          { field: "body", message: "Invalid request body" },
+        ]);
+      }
 
-    const updated = await db.execute("SELECT * FROM tags WHERE id = ?", [
-      tagId,
-    ]);
-    const row = updated.rows[0] as any;
+      const updates: Record<string, unknown> = {};
+      if (validated.name !== undefined) updates.name = validated.name;
+      if (validated.color !== undefined) updates.color = validated.color;
 
-    return res.status(200).json({
-      id: row.id,
-      user_id: row.user_id,
-      name: row.name,
-      color: row.color,
-      created_at: row.created_at,
-    });
+      if (Object.keys(updates).length === 0) {
+        return sendError(res, 400, "No fields to update");
+      }
+
+      await query.updateById("tags", tagId, updates);
+      const updated = await query.fetchById("tags", tagId);
+      return sendSuccess(res, mapTagRow(updated));
+    }
+
+    if (req.method === "DELETE") {
+      await query.deleteById("tags", tagId);
+      return res.status(204).end();
+    }
+  },
+  { allowedMethods: ["PUT", "DELETE"] },
+);
   }
 
   if (req.method === "DELETE") {
-    // Delete tag (remove from tasks that reference it)
-    // Get all tasks that have this tag
     const tasksWithTag = await db.execute(
       "SELECT id, tag_ids FROM tasks WHERE user_id = ?",
       [userId],
     );
 
     for (const task of tasksWithTag.rows) {
-      const tagIds = JSON.parse((task as any).tag_ids || "[]");
+      const tagIds = (() => {
+        try {
+          const parsed = JSON.parse(
+            String((task as Record<string, unknown>).tag_ids ?? "[]"),
+          );
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      })();
       const filtered = tagIds.filter((id: string) => id !== tagId);
-      await db.execute("UPDATE tasks SET tag_ids = ? WHERE id = ?", [
-        JSON.stringify(filtered),
-        (task as any).id,
-      ]);
+      await db.execute(
+        "UPDATE tasks SET tag_ids = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+        [
+          JSON.stringify(filtered),
+          new Date().toISOString(),
+          (task as Record<string, unknown>).id,
+          userId,
+        ],
+      );
     }
 
-    // Delete the tag
-    await db.execute("DELETE FROM tags WHERE id = ?", [tagId]);
+    await db.execute("DELETE FROM tags WHERE id = ? AND user_id = ?", [
+      tagId,
+      userId,
+    ]);
 
     return res.status(204).end();
   }
 
-  return res.status(405).json({ error: "Method not allowed" });
+  return sendMethodNotAllowed(res, ["PUT", "DELETE", "OPTIONS"]);
 }

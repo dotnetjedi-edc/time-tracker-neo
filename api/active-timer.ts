@@ -1,67 +1,102 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { db } from "./lib/db";
-import { getAuthenticatedUserId } from "./lib/auth";
+import {
+  createRequestHandler,
+  createUserQueryHelper,
+  validateBody,
+  sendValidationError,
+  sendError,
+  sendSuccess,
+  mapActiveTimerRow,
+  getDb,
+} from "./lib";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const userId = await getAuthenticatedUserId(req);
-  if (!userId) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
+export default createRequestHandler(
+  async (req, res, userId) => {
+    const query = createUserQueryHelper(userId);
 
-  if (req.method === "GET") {
-    // Get active timer for user (if exists)
-    const result = await db.execute(
-      "SELECT * FROM active_timers WHERE user_id = ?",
-      [userId],
-    );
+    if (req.method === "GET") {
+      const db = getDb();
+      const result = await db.execute(
+        "SELECT * FROM active_timers WHERE user_id = ?",
+        [userId],
+      );
 
-    if (result.rows.length === 0) {
-      return res.status(200).json(null);
+      if (result.rows.length === 0) {
+        return sendSuccess(res, null);
+      }
+
+      return sendSuccess(res, mapActiveTimerRow(result.rows[0] as never));
     }
 
-    const row = result.rows[0] as any;
-    return res.status(200).json({
-      task_id: row.task_id,
-      session_id: row.session_id,
-      segment_start_time: row.segment_start_time,
-      updated_at: row.updated_at,
-    });
-  }
-
-  if (req.method === "PUT") {
-    // Create or update active timer
-    const { task_id, session_id, segment_start_time } = req.body;
-
-    if (!task_id || !session_id || !segment_start_time) {
-      return res.status(400).json({
-        error:
-          "Missing required fields: task_id, session_id, segment_start_time",
+    if (req.method === "PUT") {
+      const validated = validateBody(req.body, {
+        task_id: { type: "string", required: true, minLength: 1 },
+        session_id: { type: "string", required: true, minLength: 1 },
+        segment_start_time: { type: "string", required: true, minLength: 1 },
       });
+
+      if (!validated) {
+        return sendValidationError(res, [
+          {
+            field: "body",
+            message:
+              "Invalid request body: missing or invalid task_id, session_id, or segment_start_time",
+          },
+        ]);
+      }
+
+      // Verify task exists
+      const task = await query.fetchById("tasks", validated.task_id as string);
+      if (!task) {
+        return sendError(res, 404, "Task not found");
+      }
+
+      // Verify session exists and belongs to task
+      const session = await query.fetchById(
+        "sessions",
+        validated.session_id as string,
+      );
+      if (!session) {
+        return sendError(res, 404, "Session not found");
+      }
+
+      if (String(session.task_id) !== validated.task_id) {
+        return sendError(res, 400, "session_id must belong to task_id");
+      }
+
+      const db = getDb();
+      const now = new Date().toISOString();
+
+      // Replace existing timer
+      await db.execute("DELETE FROM active_timers WHERE user_id = ?", [userId]);
+      await db.execute(
+        `INSERT INTO active_timers (user_id, task_id, session_id, segment_start_time, updated_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          userId,
+          validated.task_id,
+          validated.session_id,
+          validated.segment_start_time,
+          now,
+        ],
+      );
+
+      return sendSuccess(
+        res,
+        {
+          task_id: validated.task_id,
+          session_id: validated.session_id,
+          segment_start_time: validated.segment_start_time,
+          updated_at: now,
+        },
+        200,
+      );
     }
 
-    const now = new Date().toISOString();
-
-    // Delete existing timer for this user, then insert new one
-    await db.execute("DELETE FROM active_timers WHERE user_id = ?", [userId]);
-    await db.execute(
-      `INSERT INTO active_timers (user_id, task_id, session_id, segment_start_time, updated_at)
-       VALUES (?, ?, ?, ?, ?)`,
-      [userId, task_id, session_id, segment_start_time, now],
-    );
-
-    return res.status(200).json({
-      task_id,
-      session_id,
-      segment_start_time,
-      updated_at: now,
-    });
-  }
-
-  if (req.method === "DELETE") {
-    // Delete active timer
-    await db.execute("DELETE FROM active_timers WHERE user_id = ?", [userId]);
-    return res.status(204).end();
-  }
-
-  return res.status(405).json({ error: "Method not allowed" });
-}
+    if (req.method === "DELETE") {
+      const db = getDb();
+      await db.execute("DELETE FROM active_timers WHERE user_id = ?", [userId]);
+      return res.status(204).end();
+    }
+  },
+  { allowedMethods: ["GET", "PUT", "DELETE"] },
+);

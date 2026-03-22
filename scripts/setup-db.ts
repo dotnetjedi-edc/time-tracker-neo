@@ -3,6 +3,7 @@ import { readFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { createClient } from "@libsql/client";
+import { readDatabaseConfig } from "../api/lib/db";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -10,31 +11,44 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: resolve(__dirname, "../.env.local") });
 
 async function main() {
-  const url = process.env.TURSO_DATABASE_URL;
-  if (!url) {
-    console.error("Error: TURSO_DATABASE_URL environment variable is required");
+  let db;
+  try {
+    db = createClient(readDatabaseConfig());
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Error: ${message}`);
     process.exit(1);
   }
 
-  const db = createClient({
-    url,
-    authToken: process.env.TURSO_AUTH_TOKEN,
-  });
-
   const schemaPath = resolve(__dirname, "../api/lib/schema.sql");
-  const schema = readFileSync(schemaPath, "utf-8");
+  let schema: string;
+
+  try {
+    schema = readFileSync(schemaPath, "utf-8");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(
+      `Error: unable to read schema file at ${schemaPath}: ${message}`,
+    );
+    process.exit(1);
+  }
 
   console.log("Executing database schema...");
 
   try {
-    // Drop existing tables to allow schema updates
-    await db.execute("DROP TABLE IF EXISTS active_timers");
-    await db.execute("DROP TABLE IF EXISTS sessions");
-    await db.execute("DROP TABLE IF EXISTS tasks");
-    await db.execute("DROP TABLE IF EXISTS tags");
+    await db.executeMultiple(schema);
 
-    // Execute the entire schema at once (handles comments and formatting better)
-    const result = await db.executeMultiple(schema);
+    const sessionColumns = await db.execute("PRAGMA table_info(sessions)");
+    const hasUpdatedAt = sessionColumns.rows.some(
+      (row) => row.name === "updated_at",
+    );
+
+    if (!hasUpdatedAt) {
+      await db.execute(
+        "ALTER TABLE sessions ADD COLUMN updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
+      );
+    }
+
     console.log(`Database schema initialized successfully.`);
   } catch (error) {
     console.error("Failed to initialize database:", error);

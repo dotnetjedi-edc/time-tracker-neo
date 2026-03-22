@@ -3,7 +3,7 @@ title: "Vercel API Routes with Turso Connection"
 story_id: "5.1"
 story_key: "5-1-vercel-api-routes-with-turso-connection"
 created: "2026-03-21"
-status: "ready-for-dev"
+status: "review"
 stepsCompleted: [1, 2, 3, 4]
 epic: "Epic 5: Backend Persistence & Multi-Device Sync"
 tech_stack:
@@ -39,7 +39,7 @@ test_patterns:
 
 ## Story 5.1: Vercel API Routes with Turso Connection
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -56,19 +56,19 @@ so that the frontend can read and write persistent data through a secure backend
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Harden the shared backend boundary for auth and database access (AC: 1, 3)
-  - [ ] Confirm `api/lib/auth.ts` rejects missing, malformed, and invalid bearer tokens consistently.
-  - [ ] Confirm `api/lib/db.ts` fails fast on missing database configuration and does not expose server-only secrets to the client.
-  - [ ] Keep all route families dependent on the shared helpers rather than duplicating auth or connection logic.
+- [x] Task 1: Harden the shared backend boundary for auth and database access (AC: 1, 3)
+  - [x] Confirm `api/lib/auth.ts` rejects missing, malformed, and invalid bearer tokens consistently.
+  - [x] Confirm `api/lib/db.ts` fails fast on missing database configuration and does not expose server-only secrets to the client.
+  - [x] Keep all route families dependent on the shared helpers rather than duplicating auth or connection logic.
 
-- [ ] Task 2: Normalize the database schema and deployment contract (AC: 1, 2, 4)
-  - [ ] Ensure `api/lib/schema.sql` reflects the session-oriented model already used by the frontend domain.
-  - [ ] Confirm `vercel.json` routes API traffic correctly alongside the SPA frontend.
-  - [ ] Add or refresh `.env.local.example` so local setup documents Clerk and Turso variables explicitly.
+- [x] Task 2: Normalize the database schema and deployment contract (AC: 1, 2, 4)
+  - [x] Ensure `api/lib/schema.sql` reflects the session-oriented model already used by the frontend domain.
+  - [x] Confirm `vercel.json` routes API traffic correctly alongside the SPA frontend.
+  - [x] Add or refresh `.env.local.example` so local setup documents Clerk and Turso variables explicitly.
 
-- [ ] Task 3: Add backend readiness validation for protected route access (AC: 2, 3)
-  - [ ] Add a lightweight validation path or documented smoke-check flow for local route startup.
-  - [ ] Cover unauthorized behavior for representative endpoints so the shared auth boundary cannot regress silently.
+- [x] Task 3: Add backend readiness validation for protected route access (AC: 2, 3)
+  - [x] Add a lightweight validation path or documented smoke-check flow for local route startup.
+  - [x] Cover unauthorized behavior for representative endpoints so the shared auth boundary cannot regress silently.
 
 ## Dev Notes
 

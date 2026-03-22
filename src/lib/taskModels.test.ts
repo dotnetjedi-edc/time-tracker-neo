@@ -10,7 +10,7 @@ import type { Task, TaskSession } from "../types";
 describe("taskModels", () => {
   it("defaults legacy tasks to an active lifecycle boundary", () => {
     const legacyTask: Task = {
-      id: 1,
+      id: "1",
       name: "Focus",
       comment: null,
       totalTimeSeconds: 0,
@@ -34,7 +34,7 @@ describe("taskModels", () => {
   it("creates export-ready reporting snapshots from tasks and sessions", () => {
     const tasks: Task[] = [
       {
-        id: 2,
+        id: "2",
         name: "Admin",
         comment: null,
         totalTimeSeconds: 1800,
@@ -48,7 +48,7 @@ describe("taskModels", () => {
         },
       },
       {
-        id: 1,
+        id: "1",
         name: "Focus",
         comment: null,
         totalTimeSeconds: 5400,
@@ -61,8 +61,8 @@ describe("taskModels", () => {
 
     const sessions: TaskSession[] = [
       {
-        id: 10,
-        taskId: 1,
+        id: "10",
+        taskId: "1",
         origin: "timer",
         startedAt: "2026-03-21T09:00:00.000Z",
         endedAt: "2026-03-21T10:00:00.000Z",
@@ -80,8 +80,8 @@ describe("taskModels", () => {
         updatedAt: "2026-03-21T10:00:00.000Z",
       },
       {
-        id: 11,
-        taskId: 1,
+        id: "11",
+        taskId: "1",
         origin: "manual",
         startedAt: "2026-03-21T10:15:00.000Z",
         endedAt: "2026-03-21T10:45:00.000Z",
@@ -104,7 +104,7 @@ describe("taskModels", () => {
 
     expect(snapshots).toHaveLength(2);
     expect(snapshots[0]).toEqual({
-      taskId: 1,
+      taskId: "1",
       taskName: "Focus",
       lifecycleStatus: "active",
       archivedAt: null,
@@ -113,8 +113,8 @@ describe("taskModels", () => {
       lastTrackedAt: "2026-03-21T10:45:00.000Z",
       sessions: [
         {
-          sessionId: 10,
-          taskId: 1,
+          sessionId: "10",
+          taskId: "1",
           origin: "timer",
           date: "2026-03-21",
           startedAt: "2026-03-21T09:00:00.000Z",
@@ -123,8 +123,8 @@ describe("taskModels", () => {
           segmentCount: 1,
         },
         {
-          sessionId: 11,
-          taskId: 1,
+          sessionId: "11",
+          taskId: "1",
           origin: "manual",
           date: "2026-03-21",
           startedAt: "2026-03-21T10:15:00.000Z",

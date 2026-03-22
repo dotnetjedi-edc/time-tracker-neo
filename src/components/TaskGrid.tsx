@@ -24,14 +24,14 @@ import { TaskCard, TaskCardOverlay } from "./TaskCard";
 interface TaskGridProps {
   tasks: Task[];
   tags: Tag[];
-  activeTaskId: number | null;
-  liveTotals: Record<number, number>;
-  onToggleTimer: (taskId: number) => void;
+  activeTaskId: string | null;
+  liveTotals: Record<string, number>;
+  onToggleTimer: (taskId: string) => void | Promise<void>;
   onEditTask: (task: Task) => void;
   onOpenManualTime: (task: Task) => void;
   onOpenHistory: (task: Task) => void;
   onAddTask: () => void;
-  onReorder: (taskIds: number[]) => void;
+  onReorder: (taskIds: string[]) => void | Promise<void>;
 }
 
 export function TaskGrid({
@@ -46,13 +46,13 @@ export function TaskGrid({
   onAddTask,
   onReorder,
 }: TaskGridProps) {
-  const [draggedTaskId, setDraggedTaskId] = useState<number | null>(null);
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverlayWidth, setDragOverlayWidth] = useState<number | null>(null);
 
-  const [lockedToggleTaskId, setLockedToggleTaskId] = useState<number | null>(
+  const [lockedToggleTaskId, setLockedToggleTaskId] = useState<string | null>(
     null,
   );
-  const [orderedTaskIds, setOrderedTaskIds] = useState<number[]>(() =>
+  const [orderedTaskIds, setOrderedTaskIds] = useState<string[]>(() =>
     tasks.map((task) => task.id),
   );
   const overlayRef = useRef<HTMLDivElement | null>(null);
@@ -184,7 +184,7 @@ export function TaskGrid({
     };
   }, [draggedTaskId]);
 
-  const scheduleToggleUnlock = (taskId: number | null) => {
+  const scheduleToggleUnlock = (taskId: string | null) => {
     if (releaseToggleLockTimeoutRef.current !== null) {
       window.clearTimeout(releaseToggleLockTimeoutRef.current);
     }
@@ -202,7 +202,7 @@ export function TaskGrid({
   };
 
   const handleDragStart = (event: DragStartEvent) => {
-    const activeId = Number(event.active.id);
+    const activeId = String(event.active.id);
 
     if (releaseToggleLockTimeoutRef.current !== null) {
       window.clearTimeout(releaseToggleLockTimeoutRef.current);
@@ -220,8 +220,8 @@ export function TaskGrid({
       return;
     }
 
-    const activeId = Number(event.active.id);
-    const overId = Number(event.over.id);
+    const activeId = String(event.active.id);
+    const overId = String(event.over.id);
 
     if (activeId === overId) {
       return;
@@ -240,7 +240,7 @@ export function TaskGrid({
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
-    const releasedTaskId = Number(event.active.id);
+    const releasedTaskId = String(event.active.id);
     const initialTaskIds = tasks.map((task) => task.id);
 
     if (!event.over) {

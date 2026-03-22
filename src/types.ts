@@ -1,7 +1,7 @@
 export type ViewMode = "grid" | "week";
 
 export interface Tag {
-  id: number;
+  id: string;
   name: string;
   color: string;
   createdAt: string;
@@ -15,21 +15,21 @@ export interface TaskLifecycle {
 }
 
 export interface Task {
-  id: number;
+  id: string;
   name: string;
   comment: string | null;
   totalTimeSeconds: number;
   position: number;
-  tagIds: number[];
+  tagIds: string[];
   lifecycle?: TaskLifecycle;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface TimeEntry {
-  id: number;
-  taskId: number;
-  sessionId: number;
+  id: string;
+  taskId: string;
+  sessionId: string;
   startTime: string;
   endTime: string;
   durationSeconds: number;
@@ -38,8 +38,8 @@ export interface TimeEntry {
 }
 
 export interface ActiveTimer {
-  taskId: number;
-  sessionId: number;
+  taskId: string;
+  sessionId: string;
   segmentStartTime: string;
   updatedAt: string;
 }
@@ -69,8 +69,8 @@ export interface SessionAuditEvent {
 }
 
 export interface TaskSession {
-  id: number;
-  taskId: number;
+  id: string;
+  taskId: string;
   origin: SessionOrigin;
   startedAt: string;
   endedAt: string | null;
@@ -84,7 +84,7 @@ export interface TaskSession {
 export interface TaskDraft {
   name: string;
   comment: string;
-  tagIds: number[];
+  tagIds: string[];
 }
 
 export interface SessionDraft {
@@ -93,9 +93,9 @@ export interface SessionDraft {
 }
 
 export interface WeeklyTaskSummary {
-  taskId: number;
+  taskId: string;
   taskName: string;
-  tagIds: number[];
+  tagIds: string[];
   byDay: Record<string, number>;
   totalSeconds: number;
 }
