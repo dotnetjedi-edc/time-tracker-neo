@@ -7,7 +7,7 @@
 # story_location: _bmad-output/implementation-artifacts
 
 generated: 2026-03-20 23:50
-last_updated: 2026-03-21
+last_updated: 2026-03-23
 project: time-tracker3
 project_key: TT3
 tracking_system: file-system
@@ -21,32 +21,32 @@ development_status:
   1-4-add-regression-coverage-for-timer-recovery: done
   epic-1-retrospective: optional
 
-  epic-2: backlog
-  2-1-drag-tasks-from-the-card-surface: backlog
-  2-2-toggle-timer-with-a-simple-card-click-or-tap: backlog
-  2-3-prevent-accidental-timer-toggles-during-reordering: backlog
-  2-4-add-regression-coverage-for-card-click-and-drag-behavior: backlog
+  epic-2: done
+  2-1-drag-tasks-from-the-card-surface: done
+  2-2-toggle-timer-with-a-simple-card-click-or-tap: done
+  2-3-prevent-accidental-timer-toggles-during-reordering: done
+  2-4-add-regression-coverage-for-card-click-and-drag-behavior: done
   epic-2-retrospective: optional
 
   epic-3: done
   3-1-reduce-header-vertical-footprint: done
   3-2-preserve-compact-header-actions-and-filters: done
   3-3-compact-mobile-task-cards: done
-  epic-3-retrospective: optional
+  epic-3-retrospective: done
 
-  epic-4: in-progress
-  4-1-prepare-task-and-session-models-for-future-workflow-extensions: review
+  epic-4: done
+  4-1-prepare-task-and-session-models-for-future-workflow-extensions: done
   4-2-prepare-ui-interaction-boundaries-for-future-shortcuts-and-advanced-actions: skipped
   epic-4-retrospective: optional
 
-  epic-5: review
-  5-1-vercel-api-routes-with-turso-connection: review
-  5-2-tasks-and-tags-api-endpoints: review
-  5-3-sessions-and-active-timer-api-endpoints: review
-  5-4-frontend-store-migration-to-api-layer: review
-  5-5-github-actions-cicd-with-turso-and-clerk-secrets: review
-  5-6-database-initialization-script: review
-  epic-5-retrospective: optional
+  epic-5: done
+  5-1-vercel-api-routes-with-turso-connection: done
+  5-2-tasks-and-tags-api-endpoints: done
+  5-3-sessions-and-active-timer-api-endpoints: done
+  5-4-frontend-store-migration-to-api-layer: done
+  5-5-github-actions-cicd-with-turso-and-clerk-secrets: done
+  5-6-database-initialization-script: done
+  epic-5-retrospective: done
 
   epic-6: planned
   6-1-fix-mobile-drag-and-drop: backlog

@@ -1,7 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type {
-  ComponentPropsWithoutRef,
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
 } from "react";
@@ -32,7 +31,8 @@ interface TaskCardProps {
 }
 
 interface TaskCardSurfaceProps extends TaskCardProps {
-  dragHandleProps?: ComponentPropsWithoutRef<"button">;
+  sortableAttributes?: ReturnType<typeof useSortable>["attributes"];
+  sortableListeners?: ReturnType<typeof useSortable>["listeners"];
   isDragging?: boolean;
   isOverlay?: boolean;
   onPointerCancel?: (event: ReactPointerEvent<HTMLElement>) => void;
@@ -56,7 +56,8 @@ function TaskCardSurface({
   onPointerDown,
   onPointerMove,
   onPointerUp,
-  dragHandleProps,
+  sortableAttributes,
+  sortableListeners,
   isDragging = false,
   isOverlay = false,
   setNodeRef,
@@ -79,6 +80,10 @@ function TaskCardSurface({
   return (
     <article
       ref={setNodeRef}
+      {...sortableAttributes}
+      {...sortableListeners}
+      role="group"
+      aria-roledescription="draggable"
       data-testid={isOverlay ? undefined : `task-card-${task.id}`}
       onClick={handleCardClick}
       onPointerCancel={onPointerCancel}
@@ -93,22 +98,19 @@ function TaskCardSurface({
         isDragging && !isOverlay ? "opacity-0" : "opacity-100",
         isOverlay
           ? "z-30 rotate-1 shadow-2xl ring-1 ring-ink/10 cursor-grabbing"
-          : "",
+          : "cursor-pointer",
         "transform-gpu",
       ].join(" ")}
     >
       <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-coral via-gold to-mint" />
       <div className="flex items-start justify-between gap-3 sm:gap-4">
-        <button
-          type="button"
+        <div
           data-card-control="drag-handle"
           className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-ink/10 bg-white/80 text-ink/55 transition hover:border-ink/30 hover:text-ink"
-          aria-label={`Réorganiser ${task.name}`}
-          tabIndex={isDragging && !isOverlay ? -1 : undefined}
-          {...dragHandleProps}
+          aria-hidden="true"
         >
           <GripVertical size={15} />
-        </button>
+        </div>
 
         <button
           type="button"
@@ -296,6 +298,14 @@ export function TaskCard({
     onToggleTimer(taskId);
   };
 
+  const mergedPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+    handlePointerDown(event);
+    const dndHandler = listeners?.onPointerDown;
+    if (typeof dndHandler === "function") {
+      dndHandler(event);
+    }
+  };
+
   return (
     <TaskCardSurface
       task={task}
@@ -308,10 +318,11 @@ export function TaskCard({
       onOpenManualTime={onOpenManualTime}
       onOpenHistory={onOpenHistory}
       isDragInteractionActive={isDragInteractionActive}
-      dragHandleProps={{ ...attributes, ...listeners }}
+      sortableAttributes={attributes}
+      sortableListeners={listeners}
       isDragging={isDragging}
       setNodeRef={handleSetNodeRef}
-      onPointerDown={handlePointerDown}
+      onPointerDown={mergedPointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerEnd}
       onPointerCancel={handlePointerEnd}

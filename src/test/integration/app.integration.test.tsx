@@ -546,11 +546,8 @@ describe("Time Tracker integration", () => {
     ).toBeVisible();
     expect(within(taskCard).getByText(/^client$/i)).toBeVisible();
     expect(within(taskCard).getByText(/^mobile$/i)).toBeVisible();
-    expect(
-      within(taskCard).getByRole("button", {
-        name: /réorganiser préparation atelier client mobile prioritaire/i,
-      }),
-    ).toBeVisible();
+    expect(taskCard).toHaveAttribute("role", "group");
+    expect(taskCard).toHaveAttribute("aria-roledescription", "draggable");
     expect(
       within(taskCard).getByRole("button", {
         name: /modifier préparation atelier client mobile prioritaire/i,
@@ -613,6 +610,8 @@ describe("Time Tracker integration", () => {
 
     await user.click(screen.getByRole("button", { name: /^fermer$/i }));
 
+    expect(useTimeTrackerStore.getState().activeTimer).toBeNull();
+
     await user.click(
       within(taskCard).getByRole("button", {
         name: /modifier préparation atelier/i,
@@ -621,6 +620,19 @@ describe("Time Tracker integration", () => {
     expect(
       screen.getByRole("dialog", { name: /modifier la tâche/i }),
     ).toBeInTheDocument();
+    expect(useTimeTrackerStore.getState().activeTimer).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: /^fermer$/i }));
+
+    await user.click(
+      within(taskCard).getByRole("button", { name: /historique/i }),
+    );
+    expect(
+      screen.getByRole("dialog", {
+        name: /temps et historique pour préparation atelier/i,
+      }),
+    ).toBeInTheDocument();
+    expect(useTimeTrackerStore.getState().activeTimer).toBeNull();
   }, 10000);
 
   it("starts, switches, and stops timers from simple task-card clicks", async () => {
@@ -734,5 +746,38 @@ describe("Time Tracker integration", () => {
 
     expect(onToggleTimer).not.toHaveBeenCalled();
     expect(screen.getByText(/^actif$/i)).toBeVisible();
+  }, 10000);
+
+  it("ignores card clicks while a drag interaction is globally active", () => {
+    const onToggleTimer = vi.fn();
+
+    render(
+      <TaskCard
+        task={{
+          id: "1",
+          name: "Alpha",
+          comment: "Tâche prête",
+          totalTimeSeconds: 0,
+          position: 0,
+          tagIds: [],
+          lifecycle: { status: "active", archivedAt: null },
+          createdAt: "2026-03-20T09:00:00.000Z",
+          updatedAt: "2026-03-20T09:00:00.000Z",
+        }}
+        taskTags={[]}
+        isActive={false}
+        isTimerToggleLocked={false}
+        isDragInteractionActive
+        liveSeconds={0}
+        onToggleTimer={onToggleTimer}
+        onEdit={vi.fn()}
+        onOpenManualTime={vi.fn()}
+        onOpenHistory={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("task-card-1"));
+
+    expect(onToggleTimer).not.toHaveBeenCalled();
   }, 10000);
 });

@@ -131,7 +131,10 @@ test("reorders task cards with drag and drop", async ({ page }) => {
     throw new Error("Unable to locate task cards for drag and drop test.");
   }
 
-  await page.mouse.move(secondCardBox.x + 28, secondCardBox.y + 28);
+  await page.mouse.move(
+    secondCardBox.x + secondCardBox.width / 2,
+    secondCardBox.y + secondCardBox.height / 2,
+  );
   await page.mouse.down();
   await page.mouse.move(
     firstCardBox.x + firstCardBox.width / 2,
@@ -172,7 +175,10 @@ test("does not start a timer when dragging an inactive task card", async ({
   }
 
   // Drag Alpha (first card) down to Beta's position — no timer should start
-  await page.mouse.move(firstCardBox.x + 28, firstCardBox.y + 28);
+  await page.mouse.move(
+    firstCardBox.x + firstCardBox.width / 2,
+    firstCardBox.y + firstCardBox.height / 2,
+  );
   await page.mouse.down();
   await page.mouse.move(
     secondCardBox.x + secondCardBox.width / 2,
@@ -219,7 +225,10 @@ test("keeps the active timer running when the active card is reordered", async (
     throw new Error("Unable to locate task cards for active drag test.");
   }
 
-  await page.mouse.move(alphaCardBox.x + 28, alphaCardBox.y + 28);
+  await page.mouse.move(
+    alphaCardBox.x + alphaCardBox.width / 2,
+    alphaCardBox.y + alphaCardBox.height / 2,
+  );
   await page.mouse.down();
   await page.mouse.move(
     betaCardBox.x + betaCardBox.width / 2,
