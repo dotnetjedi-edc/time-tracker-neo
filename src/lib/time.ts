@@ -56,7 +56,10 @@ export const toDateKey = (value: string | Date): string => {
 };
 
 export const startOfWeek = (value: string | Date): Date => {
-  const date = typeof value === "string" ? new Date(value) : new Date(value);
+  const date =
+    typeof value === "string"
+      ? new Date(value.includes("T") ? value : value + "T00:00:00")
+      : new Date(value);
   const normalized = new Date(
     date.getFullYear(),
     date.getMonth(),
