@@ -39,13 +39,24 @@ async function main() {
     await db.executeMultiple(schema);
 
     const sessionColumns = await db.execute("PRAGMA table_info(sessions)");
-    const hasUpdatedAt = sessionColumns.rows.some(
+    const hasSessionUpdatedAt = sessionColumns.rows.some(
       (row) => row.name === "updated_at",
     );
 
-    if (!hasUpdatedAt) {
+    if (!hasSessionUpdatedAt) {
       await db.execute(
         "ALTER TABLE sessions ADD COLUMN updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
+      );
+    }
+
+    const tagColumns = await db.execute("PRAGMA table_info(tags)");
+    const hasTagUpdatedAt = tagColumns.rows.some(
+      (row) => row.name === "updated_at",
+    );
+
+    if (!hasTagUpdatedAt) {
+      await db.execute(
+        "ALTER TABLE tags ADD COLUMN updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
       );
     }
 
