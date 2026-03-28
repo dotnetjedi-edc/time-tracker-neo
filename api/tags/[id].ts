@@ -7,7 +7,7 @@ import {
   sendSuccess,
   mapTagRow,
   getDb,
-} from "../lib.js";
+} from "../lib/index.js";
 
 export default createRequestHandler(
   async (req, res, userId) => {

@@ -21,7 +21,7 @@ import {
   sendSuccess,
   sendError,
   mapTaskRow,
-} from "./lib.js";
+} from "./index.js";
 
 export default createRequestHandler(
   async (req, res, userId) => {

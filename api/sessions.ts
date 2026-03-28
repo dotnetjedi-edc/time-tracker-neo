@@ -6,7 +6,7 @@ import {
   sendError,
   sendSuccess,
   mapSessionRow,
-} from "./lib.js";
+} from "./lib/index.js";
 
 const isSessionOrigin = (value: unknown): value is "timer" | "manual" =>
   value === "timer" || value === "manual";
