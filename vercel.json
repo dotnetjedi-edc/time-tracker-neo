@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "packageManager": "npm@latest",
   "devCommand": "node scripts/vercel-dev-command.js",
   "rewrites": [
     {

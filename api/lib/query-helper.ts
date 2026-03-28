@@ -1,5 +1,5 @@
 import type { InValue } from "@libsql/client";
-import { getDb } from "./db";
+import { getDb } from "./db.js";
 
 export interface QueryResult<T> {
   rows: T[];

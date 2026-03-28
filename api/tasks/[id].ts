@@ -7,7 +7,7 @@ import {
   sendSuccess,
   mapTaskRow,
   getDb,
-} from "../lib";
+} from "../lib.js";
 
 const hasOnlyOwnedTags = async (
   query: ReturnType<typeof createUserQueryHelper>,

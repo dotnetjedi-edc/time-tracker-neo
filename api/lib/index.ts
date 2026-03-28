@@ -12,10 +12,10 @@
  */
 
 // Auth module
-export { getBearerToken, getAuthenticatedUserId } from "./auth";
+export { getBearerToken, getAuthenticatedUserId } from "./auth.js";
 
 // Database module
-export { getDb, readDatabaseConfig, type DatabaseConfig } from "./db";
+export { getDb, readDatabaseConfig, type DatabaseConfig } from "./db.js";
 
 // HTTP utilities
 export {
@@ -26,7 +26,7 @@ export {
   parseOptionalNumber,
   sendMethodNotAllowed,
   sendOptions,
-} from "./http";
+} from "./http.js";
 
 // Request handler (newer, more flexible approach)
 export {
@@ -35,14 +35,14 @@ export {
   type RequestHandler,
   type HandlerOptions,
   type QueryParamsSpec,
-} from "./request-handler";
+} from "./request-handler.js";
 
 // Query helper (user-scoped database operations)
 export {
   createUserQueryHelper,
   UserQueryHelper,
   type QueryResult,
-} from "./query-helper";
+} from "./query-helper.js";
 
 // Validation helpers
 export {
@@ -56,7 +56,7 @@ export {
   type ValidationError,
   type PaginationParams,
   type PaginatedResponse,
-} from "./validation-helper";
+} from "./validation-helper.js";
 
 // Model mappers
 export {
@@ -64,4 +64,4 @@ export {
   mapTagRow,
   mapSessionRow,
   mapActiveTimerRow,
-} from "./models";
+} from "./models.js";
