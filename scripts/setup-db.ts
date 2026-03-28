@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { createClient } from "@libsql/client";
-import { readDatabaseConfig } from "../api/lib/db";
+import { readDatabaseConfig } from "../server/lib/db.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

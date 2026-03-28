@@ -1,5 +1,5 @@
-import { getDb } from "../lib/db.js";
-import { createRequestHandler } from "../lib/request-handler.js";
+import { getDb } from "../../server/lib/db.js";
+import { createRequestHandler } from "../../server/lib/request-handler.js";
 
 const isE2EBypassEnabled = process.env.E2E_BYPASS_AUTH === "true";
 const e2eUserId = process.env.E2E_BYPASS_USER_ID ?? "e2e-user";

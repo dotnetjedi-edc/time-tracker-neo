@@ -7,7 +7,7 @@ import {
   sendSuccess,
   mapSessionRow,
   getDb,
-} from "../lib/index.js";
+} from "../../server/lib/index.js";
 
 export default createRequestHandler(
   async (req, res, userId) => {

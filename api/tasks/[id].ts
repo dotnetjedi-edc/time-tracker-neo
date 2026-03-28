@@ -7,7 +7,7 @@ import {
   sendSuccess,
   mapTaskRow,
   getDb,
-} from "../lib/index.js";
+} from "../../server/lib/index.js";
 
 const hasOnlyOwnedTags = async (
   query: ReturnType<typeof createUserQueryHelper>,
@@ -46,12 +46,12 @@ export default createRequestHandler(
         total_time_seconds: {
           type: "number",
           required: false,
-          validate: (v) => v >= 0,
+          validate: (value) => typeof value === "number" && value >= 0,
         },
         position: {
           type: "number",
           required: false,
-          validate: (v) => v >= 0,
+          validate: (value) => typeof value === "number" && value >= 0,
         },
         tag_ids: { type: "string[]", required: false },
         lifecycle_status: {

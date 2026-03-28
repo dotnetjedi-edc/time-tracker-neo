@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateBody } from "../../api/lib/validation-helper";
+import { validateBody } from "../../server/lib/validation-helper.js";
 
 describe("validation helper", () => {
   it("accepts array fields used by session payloads", () => {

@@ -7,16 +7,9 @@ export interface QueryResult<T> {
   rowsAffected?: number;
 }
 
-/**
- * Helper for user-scoped database queries
- * Ensures all queries are automatically filtered by user_id
- */
 export class UserQueryHelper {
   constructor(private userId: string) {}
 
-  /**
-   * Execute a query with automatic user ID parameter injection
-   */
   async execute<T = Record<string, unknown>>(
     query: string,
     params: InValue[] = [],
@@ -35,9 +28,6 @@ export class UserQueryHelper {
     }
   }
 
-  /**
-   * Fetch all records for this user
-   */
   async fetchAll<T = Record<string, unknown>>(
     table: string,
     orderBy?: string,
@@ -49,9 +39,6 @@ export class UserQueryHelper {
     return this.execute<T>(query, [this.userId]);
   }
 
-  /**
-   * Fetch a single record by ID
-   */
   async fetchById<T = Record<string, unknown>>(
     table: string,
     id: string,
@@ -61,9 +48,6 @@ export class UserQueryHelper {
     return result.rows[0] ?? null;
   }
 
-  /**
-   * Fetch multiple records by IDs
-   */
   async fetchByIds<T = Record<string, unknown>>(
     table: string,
     ids: string[],
@@ -76,9 +60,6 @@ export class UserQueryHelper {
     return this.execute<T>(query, [...ids, this.userId]);
   }
 
-  /**
-   * Fetch records with a WHERE condition
-   */
   async fetch<T = Record<string, unknown>>(
     table: string,
     where: string,
@@ -92,9 +73,6 @@ export class UserQueryHelper {
     return this.execute<T>(query, [this.userId, ...params]);
   }
 
-  /**
-   * Insert a record and return the new ID
-   */
   async insert(table: string, data: Record<string, unknown>): Promise<string> {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
@@ -121,9 +99,6 @@ export class UserQueryHelper {
     return id;
   }
 
-  /**
-   * Update a record by ID
-   */
   async updateById(
     table: string,
     id: string,
@@ -139,18 +114,12 @@ export class UserQueryHelper {
     return (result.rowsAffected ?? 0) > 0;
   }
 
-  /**
-   * Delete a record by ID
-   */
   async deleteById(table: string, id: string): Promise<boolean> {
     const query = `DELETE FROM ${table} WHERE id = ? AND user_id = ?`;
     const result = await this.execute(query, [id, this.userId]);
     return (result.rowsAffected ?? 0) > 0;
   }
 
-  /**
-   * Count records matching a condition
-   */
   async count(table: string, where = ""): Promise<number> {
     let query = `SELECT COUNT(*) as count FROM ${table} WHERE user_id = ?`;
     const params: InValue[] = [this.userId];
@@ -179,9 +148,6 @@ export class UserQueryHelper {
   }
 }
 
-/**
- * Create a user query helper for a specific user
- */
 export const createUserQueryHelper = (userId: string): UserQueryHelper => {
   return new UserQueryHelper(userId);
 };

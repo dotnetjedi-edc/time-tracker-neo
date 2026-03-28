@@ -5,9 +5,6 @@ export interface ValidationError {
   message: string;
 }
 
-/**
- * Schema-driven request validation
- */
 export interface ValidationSchema {
   [key: string]: {
     type: "string" | "number" | "boolean" | "string[]" | "object" | "array";
@@ -20,10 +17,6 @@ export interface ValidationSchema {
   };
 }
 
-/**
- * Validate request body against a schema
- * Returns validated data or null if invalid
- */
 export const validateBody = (
   body: unknown,
   schema: ValidationSchema,
@@ -38,7 +31,6 @@ export const validateBody = (
   for (const [field, rules] of Object.entries(schema)) {
     const value = (body as Record<string, unknown>)[field];
 
-    // Check if required
     if (
       rules.required &&
       (value === undefined || value === null || value === "")
@@ -47,13 +39,11 @@ export const validateBody = (
       continue;
     }
 
-    // Skip if optional and not provided
     if (!rules.required && (value === undefined || value === null)) {
       validated[field] = value;
       continue;
     }
 
-    // Type validation
     let isValid = false;
     switch (rules.type) {
       case "string":
@@ -122,7 +112,6 @@ export const validateBody = (
       continue;
     }
 
-    // Custom validation
     if (rules.validate && !rules.validate(value)) {
       errors.push({
         field,
@@ -131,7 +120,6 @@ export const validateBody = (
       continue;
     }
 
-    // Enum validation
     if (rules.enum && !rules.enum.includes(value)) {
       errors.push({
         field,
@@ -151,9 +139,6 @@ export const validateBody = (
   return validated;
 };
 
-/**
- * Send validation error response
- */
 export const sendValidationError = (
   res: VercelResponse,
   errors: ValidationError[],
@@ -165,9 +150,6 @@ export const sendValidationError = (
   });
 };
 
-/**
- * Send a standardized error response
- */
 export const sendError = (
   res: VercelResponse,
   statusCode: number,
@@ -186,9 +168,6 @@ export const sendError = (
   return res.status(statusCode).json(payload);
 };
 
-/**
- * Send a standardized success response
- */
 export const sendSuccess = <T>(
   res: VercelResponse,
   data: T,
@@ -198,9 +177,6 @@ export const sendSuccess = <T>(
   return res.status(statusCode).json(data);
 };
 
-/**
- * Paginate query results
- */
 export interface PaginationParams {
   page?: number;
   limit?: number;
@@ -216,9 +192,6 @@ export const getPaginationParams = (
   return { offset, limit };
 };
 
-/**
- * Build a paginated response
- */
 export interface PaginatedResponse<T> {
   data: T[];
   pagination: {

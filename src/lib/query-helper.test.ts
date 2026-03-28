@@ -2,13 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const executeMock = vi.fn();
 
-vi.mock("../../api/lib/db", () => ({
+vi.mock("../../server/lib/db.js", () => ({
   getDb: () => ({
     execute: executeMock,
   }),
 }));
 
-import { UserQueryHelper } from "../../api/lib/query-helper";
+import { UserQueryHelper } from "../../server/lib/query-helper.js";
 
 describe("UserQueryHelper", () => {
   beforeEach(() => {

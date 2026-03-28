@@ -13,24 +13,6 @@ export interface HandlerOptions {
   requiresAuth?: boolean;
 }
 
-/**
- * Wraps a request handler with common middleware:
- * - CORS OPTIONS support (automatic)
- * - HTTP method validation
- * - Authentication and user ID extraction
- * - Error handling
- *
- * @example
- * export default createRequestHandler(
- *   async (req, res, userId) => {
- *     if (req.method === "GET") {
- *       const tasks = await getTasksForUser(userId);
- *       return res.status(200).json(tasks);
- *     }
- *   },
- *   { allowedMethods: ["GET", "POST"] }
- * );
- */
 export const createRequestHandler =
   (handler: RequestHandler, options: HandlerOptions) =>
   async (req: VercelRequest, res: VercelResponse) => {
@@ -40,19 +22,16 @@ export const createRequestHandler =
       requiresAuth = true,
     } = options;
 
-    // Handle CORS preflight
     if (includeOptions && req.method === "OPTIONS") {
       res.setHeader("Allow", [...allowedMethods, "OPTIONS"].join(", "));
       return res.status(204).end();
     }
 
-    // Validate HTTP method
     if (!allowedMethods.includes(req.method ?? "")) {
       res.setHeader("Allow", [...allowedMethods, "OPTIONS"].join(", "));
       return res.status(405).json({ error: "Method not allowed" });
     }
 
-    // Authenticate user
     let userId: string | null = null;
     if (requiresAuth) {
       const authResult = await authenticateApiRequest(req);
@@ -79,7 +58,6 @@ export const createRequestHandler =
       }
     }
 
-    // Call the handler
     try {
       await handler(req, res, userId!);
     } catch (err) {
@@ -90,9 +68,6 @@ export const createRequestHandler =
     }
   };
 
-/**
- * Type-safe wrapper for extracting and validating query parameters
- */
 export interface QueryParamsSpec {
   [key: string]: "string" | "string[]" | "number";
 }

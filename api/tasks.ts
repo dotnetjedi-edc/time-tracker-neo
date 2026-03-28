@@ -6,7 +6,7 @@ import {
   sendError,
   sendSuccess,
   mapTaskRow,
-} from "./lib/index.js";
+} from "../server/lib/index.js";
 
 const hasOnlyOwnedTags = async (
   query: ReturnType<typeof createUserQueryHelper>,

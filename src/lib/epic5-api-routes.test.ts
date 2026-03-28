@@ -12,9 +12,9 @@ const queryHelperMock = {
   count: vi.fn(),
 };
 
-vi.mock("../../api/lib", async () => {
+vi.mock("../../server/lib/index.js", async () => {
   const actual =
-    await vi.importActual<typeof import("../../api/lib")>("../../api/lib");
+    await vi.importActual<typeof import("../../server/lib/index.js")>("../../server/lib/index.js");
 
   return {
     ...actual,
