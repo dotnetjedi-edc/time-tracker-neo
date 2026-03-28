@@ -245,6 +245,8 @@ vi.mock("@clerk/clerk-react", () => ({
   SignedIn: ({ children }: { children: ReactNode }) => children,
   SignedOut: () => null,
   useAuth: () => ({
+    isLoaded: true,
+    userId: "test-user",
     getToken: async () => "test-token",
   }),
 }));

@@ -18,8 +18,24 @@ import { createTimeTrackerApiClient } from "./lib/api";
 import { differenceInSeconds, formatDateTime } from "./lib/time";
 import { useTimeTrackerStore } from "./store/useTimeTrackerStore";
 
+const bypassAuthForE2E = import.meta.env.VITE_E2E_BYPASS_AUTH === "true";
+const bypassUserId = import.meta.env.VITE_E2E_BYPASS_USER_ID ?? "e2e-user";
+const bypassToken = "e2e-bypass-token";
+
+const useWorkspaceAuth = () => {
+  if (bypassAuthForE2E) {
+    return {
+      getToken: async () => bypassToken,
+      isLoaded: true,
+      userId: bypassUserId,
+    };
+  }
+
+  return useAuth();
+};
+
 function AuthenticatedWorkspace() {
-  const { getToken, isLoaded, userId } = useAuth();
+  const { getToken, isLoaded, userId } = useWorkspaceAuth();
   const tasks = useTimeTrackerStore((state) => state.tasks);
   const tags = useTimeTrackerStore((state) => state.tags);
   const sessions = useTimeTrackerStore((state) => state.sessions);
@@ -363,6 +379,10 @@ function SignedOutScreen() {
 }
 
 export default function App() {
+  if (bypassAuthForE2E) {
+    return <AuthenticatedWorkspace />;
+  }
+
   return (
     <>
       <ClerkLoading>

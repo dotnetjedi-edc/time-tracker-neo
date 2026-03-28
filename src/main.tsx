@@ -4,18 +4,25 @@ import { ClerkProvider } from "@clerk/clerk-react";
 import App from "./App";
 import "./index.css";
 
+const bypassAuthForE2E = import.meta.env.VITE_E2E_BYPASS_AUTH === "true";
 const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
-if (!publishableKey) {
+if (!publishableKey && !bypassAuthForE2E) {
   throw new Error(
     "VITE_CLERK_PUBLISHABLE_KEY environment variable is required.",
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
+const app = (
   <React.StrictMode>
-    <ClerkProvider publishableKey={publishableKey}>
-      <App />
-    </ClerkProvider>
-  </React.StrictMode>,
+    <App />
+  </React.StrictMode>
+);
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  bypassAuthForE2E ? (
+    app
+  ) : (
+    <ClerkProvider publishableKey={publishableKey!}>{app}</ClerkProvider>
+  ),
 );

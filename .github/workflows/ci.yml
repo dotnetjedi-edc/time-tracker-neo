@@ -9,10 +9,24 @@ on:
     branches:
       - main
       - develop
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Vercel deployment target
+        required: true
+        type: choice
+        default: preview
+        options:
+          - preview
+          - staging
+          - production
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
 
 jobs:
   type-check:
@@ -25,7 +39,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
 
       - name: Install dependencies
@@ -47,7 +61,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
 
       - name: Install dependencies
@@ -69,7 +83,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
 
       - name: Install dependencies
@@ -78,14 +92,16 @@ jobs:
       - name: Run integration tests
         run: npm run test:integration
 
-  build-and-deploy:
+  deploy-preview:
     runs-on: ubuntu-latest
-    name: Build & Deploy to Vercel
+    name: Deploy Preview to Vercel
     needs: [type-check, unit-tests, integration-tests]
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.target == 'preview')
     permissions:
       contents: read
-      deployments: write
       pull-requests: write
+    outputs:
+      deployment_url: ${{ steps.deploy.outputs.deployment_url }}
     env:
       VERCEL_TOKEN: ${{ secrets['VERCEL_TOKEN'] }}
       VERCEL_ORG_ID: ${{ secrets['VERCEL_ORG_ID'] }}
@@ -99,49 +115,134 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build application
-        run: npm run build
+      - name: Pull Vercel preview environment
+        run: npx vercel pull --yes --environment=preview --token="${VERCEL_TOKEN}"
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-build
-          path: dist/
-          retention-days: 7
+      - name: Build Vercel preview artifact
+        run: npx vercel build --token="${VERCEL_TOKEN}"
 
       - name: Deploy Preview to Vercel
+        id: deploy
+        run: |
+          deployment_url="$(npx vercel deploy --prebuilt --token="${VERCEL_TOKEN}")"
+          echo "deployment_url=${deployment_url}" >> "$GITHUB_OUTPUT"
+          echo "Preview deployment: ${deployment_url}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment preview URL on pull request
         if: github.event_name == 'pull_request'
-        id: vercel-preview
-        uses: amondnet/vercel-action@v25
+        uses: actions/github-script@v7
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment_url }}
         with:
-          vercel-token: ${{ env.VERCEL_TOKEN }}
-          github-token: ${{ secrets['GITHUB_TOKEN'] }}
-          vercel-org-id: ${{ env.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ env.VERCEL_PROJECT_ID }}
-          vercel-args: ""
+          script: |
+            const marker = '<!-- vercel-preview-deploy -->';
+            const body = `${marker}\nVercel preview prête: ${process.env.DEPLOYMENT_URL}`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
 
-      - name: Deploy Production to Vercel
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: amondnet/vercel-action@v25
-        with:
-          vercel-token: ${{ env.VERCEL_TOKEN }}
-          github-token: ${{ secrets['GITHUB_TOKEN'] }}
-          vercel-org-id: ${{ env.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ env.VERCEL_PROJECT_ID }}
-          vercel-args: "--prod"
+            const existing = comments.find(
+              (comment) => comment.user?.type === 'Bot' && comment.body?.includes(marker),
+            );
 
-      - name: Deploy Staging to Vercel
-        if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
-        uses: amondnet/vercel-action@v25
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+              return;
+            }
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body,
+            });
+
+  deploy-staging:
+    runs-on: ubuntu-latest
+    name: Deploy Staging to Vercel
+    needs: [type-check, unit-tests, integration-tests]
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/develop') || (github.event_name == 'workflow_dispatch' && inputs.target == 'staging')
+    permissions:
+      contents: read
+    env:
+      VERCEL_TOKEN: ${{ secrets['VERCEL_TOKEN'] }}
+      VERCEL_ORG_ID: ${{ secrets['VERCEL_ORG_ID'] }}
+      VERCEL_PROJECT_ID: ${{ secrets['VERCEL_PROJECT_ID'] }}
+      CLERK_SECRET_KEY: ${{ secrets['CLERK_SECRET_KEY'] }}
+      TURSO_DATABASE_URL: ${{ secrets['TURSO_DATABASE_URL'] }}
+      TURSO_AUTH_TOKEN: ${{ secrets['TURSO_AUTH_TOKEN'] }}
+      VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets['VITE_CLERK_PUBLISHABLE_KEY'] }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
         with:
-          vercel-token: ${{ env.VERCEL_TOKEN }}
-          github-token: ${{ secrets['GITHUB_TOKEN'] }}
-          vercel-org-id: ${{ env.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ env.VERCEL_PROJECT_ID }}
-          vercel-args: ""
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Pull Vercel staging environment
+        run: npx vercel pull --yes --environment=preview --token="${VERCEL_TOKEN}"
+
+      - name: Build Vercel staging artifact
+        run: npx vercel build --token="${VERCEL_TOKEN}"
+
+      - name: Deploy staging to Vercel
+        run: |
+          deployment_url="$(npx vercel deploy --prebuilt --token="${VERCEL_TOKEN}")"
+          echo "Staging deployment: ${deployment_url}" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-production:
+    runs-on: ubuntu-latest
+    name: Deploy Production to Vercel
+    needs: [type-check, unit-tests, integration-tests]
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.target == 'production')
+    permissions:
+      contents: read
+    env:
+      VERCEL_TOKEN: ${{ secrets['VERCEL_TOKEN'] }}
+      VERCEL_ORG_ID: ${{ secrets['VERCEL_ORG_ID'] }}
+      VERCEL_PROJECT_ID: ${{ secrets['VERCEL_PROJECT_ID'] }}
+      CLERK_SECRET_KEY: ${{ secrets['CLERK_SECRET_KEY'] }}
+      TURSO_DATABASE_URL: ${{ secrets['TURSO_DATABASE_URL'] }}
+      TURSO_AUTH_TOKEN: ${{ secrets['TURSO_AUTH_TOKEN'] }}
+      VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets['VITE_CLERK_PUBLISHABLE_KEY'] }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Pull Vercel production environment
+        run: npx vercel pull --yes --environment=production --token="${VERCEL_TOKEN}"
+
+      - name: Build Vercel production artifact
+        run: npx vercel build --prod --token="${VERCEL_TOKEN}"
+
+      - name: Deploy production to Vercel
+        run: |
+          deployment_url="$(npx vercel deploy --prebuilt --prod --token="${VERCEL_TOKEN}")"
+          echo "Production deployment: ${deployment_url}" >> "$GITHUB_STEP_SUMMARY"

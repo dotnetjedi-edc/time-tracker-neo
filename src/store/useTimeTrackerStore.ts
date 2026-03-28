@@ -295,6 +295,34 @@ const syncTaskTotals = (tasks: Task[], sessions: TaskSession[]): Task[] => {
   }));
 };
 
+const deriveRecoveredActiveTimer = (
+  sessions: TaskSession[],
+): ActiveTimer | null => {
+  const openSessions = sessions.filter((session) => session.endedAt === null);
+  if (openSessions.length === 0) {
+    return null;
+  }
+
+  const session = openSessions
+    .slice()
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0];
+  if (!session) {
+    return null;
+  }
+
+  const latestResumeEvent = session.auditEvents
+    .slice()
+    .reverse()
+    .find((event) => event.type === "resumed" || event.type === "started");
+
+  return {
+    taskId: session.taskId,
+    sessionId: session.id,
+    segmentStartTime: latestResumeEvent?.at ?? session.startedAt,
+    updatedAt: latestResumeEvent?.at ?? session.updatedAt,
+  };
+};
+
 const resolveErrorMessage = (error: unknown, fallback: string): string =>
   error instanceof Error && error.message ? error.message : fallback;
 
@@ -323,12 +351,14 @@ export const useTimeTrackerStore = create<TimeTrackerState>()((set, get) => ({
         apiClient.sessions.list(),
         apiClient.activeTimer.get(),
       ]);
+      const recoveredActiveTimer =
+        activeTimer ?? deriveRecoveredActiveTimer(sessions);
 
       set((state) => ({
         tasks: syncTaskTotals(tasks.map(normalizeTask), sessions),
         tags,
         sessions,
-        activeTimer,
+        activeTimer: recoveredActiveTimer,
         selectedTagIds: state.selectedTagIds.filter((tagId) =>
           tags.some((tag) => tag.id === tagId),
         ),

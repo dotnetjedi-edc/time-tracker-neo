@@ -1,6 +1,17 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
-test.beforeEach(async ({ page }) => {
+const taskCard = (page: Page, taskName: string) =>
+  page
+    .locator("article")
+    .filter({
+      has: page.getByRole("heading", {
+        name: new RegExp(`^${taskName}$`, "i"),
+      }),
+    })
+    .first();
+
+test.beforeEach(async ({ page, request }) => {
+  await request.post("/api/test/reset");
   await page.goto("/");
   await page.evaluate(() => window.localStorage.clear());
   await page.reload();
@@ -24,13 +35,13 @@ test("creates a tag and a task, runs the timer and exposes weekly totals", async
 
   await expect(page.getByText("Session client")).toBeVisible();
 
-  const sessionClientCard = page.getByTestId("task-card-1");
+  const sessionClientCard = taskCard(page, "Session client");
 
   await sessionClientCard.click({ position: { x: 80, y: 72 }, force: true });
   await page.waitForTimeout(2100);
   await sessionClientCard.click({ position: { x: 80, y: 72 }, force: true });
 
-  await expect(page.getByText("00:00:02")).toBeVisible();
+  await expect(sessionClientCard.getByText("00:00:02")).toBeVisible();
 
   await page.getByRole("button", { name: /vue calendrier/i }).click();
   await expect(
@@ -50,6 +61,9 @@ test("reload keeps an active timer running until the user stops it manually", as
   await page
     .getByRole("button", { name: /basculer le chrono pour focus/i })
     .click({ force: true });
+  await expect(
+    page.getByRole("button", { name: /arrêter le chrono actif/i }),
+  ).toBeVisible();
   await page.waitForTimeout(1200);
   await page.reload();
 
@@ -58,7 +72,7 @@ test("reload keeps an active timer running until the user stops it manually", as
   ).toBeVisible();
   await expect(page.getByRole("banner").getByText("Focus")).toBeVisible();
 
-  const focusCard = page.getByTestId("task-card-1");
+  const focusCard = taskCard(page, "Focus");
   await expect(focusCard.getByText(/^actif$/i)).toBeVisible();
 
   await page.getByRole("button", { name: /arrêter le chrono actif/i }).click();
@@ -83,14 +97,14 @@ test("allows manual time entry and exposes task history", async ({ page }) => {
     .getByRole("button", { name: /basculer le chrono pour production/i })
     .click({ force: true });
 
-  const lectureCard = page.getByTestId("task-card-2");
+  const lectureCard = taskCard(page, "Lecture");
   await lectureCard.getByRole("button", { name: /temps manuel/i }).click();
 
   const sessionsDialog = page.getByRole("dialog", {
     name: /temps et historique pour lecture/i,
   });
-  await sessionsDialog.getByLabel("Début de session").fill("2026-03-19T09:00");
-  await sessionsDialog.getByLabel("Fin de session").fill("2026-03-19T10:30");
+  await sessionsDialog.getByLabel("Début de session").fill("2026-03-28T09:00");
+  await sessionsDialog.getByLabel("Fin de session").fill("2026-03-28T10:30");
   await sessionsDialog
     .getByRole("button", { name: /ajouter la session/i })
     .click();
@@ -121,8 +135,8 @@ test("reorders task cards with drag and drop", async ({ page }) => {
   await taskDialog.getByLabel("Nom de la tâche").fill("Beta");
   await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
 
-  const firstCard = page.getByTestId("task-card-1");
-  const secondCard = page.getByTestId("task-card-2");
+  const firstCard = taskCard(page, "Alpha");
+  const secondCard = taskCard(page, "Beta");
 
   const firstCardBox = await firstCard.boundingBox();
   const secondCardBox = await secondCard.boundingBox();
@@ -140,12 +154,8 @@ test("reorders task cards with drag and drop", async ({ page }) => {
   );
   await page.mouse.up();
 
-  await expect(
-    page.locator('[data-testid^="task-card-"] h3').first(),
-  ).toHaveText("Beta");
-  await expect(
-    page.locator('[data-testid^="task-card-"] h3').nth(1),
-  ).toHaveText("Alpha");
+  await expect(page.locator("main article h3").first()).toHaveText("Beta");
+  await expect(page.locator("main article h3").nth(1)).toHaveText("Alpha");
 });
 
 test("does not start a timer when dragging an inactive task card", async ({
@@ -161,8 +171,8 @@ test("does not start a timer when dragging an inactive task card", async ({
   await taskDialog.getByLabel("Nom de la tâche").fill("Beta");
   await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
 
-  const firstCard = page.getByTestId("task-card-1");
-  const secondCard = page.getByTestId("task-card-2");
+  const firstCard = taskCard(page, "Alpha");
+  const secondCard = taskCard(page, "Beta");
 
   const firstCardBox = await firstCard.boundingBox();
   const secondCardBox = await secondCard.boundingBox();
@@ -206,8 +216,8 @@ test("keeps the active timer running when the active card is reordered", async (
   await taskDialog.getByLabel("Nom de la tâche").fill("Beta");
   await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
 
-  const alphaCard = page.getByTestId("task-card-1");
-  const betaCard = page.getByTestId("task-card-2");
+  const alphaCard = taskCard(page, "Alpha");
+  const betaCard = taskCard(page, "Beta");
 
   await alphaCard.click({ position: { x: 80, y: 72 }, force: true });
   await page.waitForTimeout(1100);
@@ -228,12 +238,8 @@ test("keeps the active timer running when the active card is reordered", async (
   );
   await page.mouse.up();
 
-  await expect(
-    page.locator('[data-testid^="task-card-"] h3').first(),
-  ).toHaveText("Beta");
-  await expect(
-    page.locator('[data-testid^="task-card-"] h3').nth(1),
-  ).toHaveText("Alpha");
+  await expect(page.locator("main article h3").first()).toHaveText("Beta");
+  await expect(page.locator("main article h3").nth(1)).toHaveText("Alpha");
   await expect(page.getByRole("banner").getByText("Alpha")).toBeVisible();
   await expect(
     alphaCard.getByRole("button", { name: /basculer le chrono pour alpha/i }),
@@ -283,11 +289,10 @@ test.describe("compact header on mobile", () => {
     await expect(page.getByRole("button", { name: /^client$/i })).toBeVisible();
 
     await page.getByRole("button", { name: /^client$/i }).click();
-    await expect(page.getByTestId("task-card-1")).toBeVisible();
-    await expect(page.getByTestId("task-card-1")).toBeInViewport();
-    await expect(
-      page.getByTestId("task-card-1").getByText("Session mobile"),
-    ).toBeVisible();
+    const sessionMobileCard = taskCard(page, "Session mobile");
+    await expect(sessionMobileCard).toBeVisible();
+    await expect(sessionMobileCard).toBeInViewport();
+    await expect(sessionMobileCard.getByText("Session mobile")).toBeVisible();
   });
 });
 
@@ -316,20 +321,20 @@ test("keeps task cards compact and operable on a phone-sized viewport", async ({
   await taskDialog.getByRole("button", { name: /^mobile$/i }).click();
   await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
 
-  const taskCard = page.getByTestId("task-card-1");
-  await expect(taskCard).toBeVisible();
+  const mobileTaskCard = taskCard(page, "Préparation atelier client mobile");
+  await expect(mobileTaskCard).toBeVisible();
   await expect(
-    taskCard.getByRole("button", { name: /temps manuel/i }),
+    mobileTaskCard.getByRole("button", { name: /temps manuel/i }),
   ).toBeVisible();
   await expect(
-    taskCard.getByRole("button", { name: /historique/i }),
+    mobileTaskCard.getByRole("button", { name: /historique/i }),
   ).toBeVisible();
 
   await expect(
-    taskCard.getByText(/préparation atelier client mobile/i),
+    mobileTaskCard.getByText(/préparation atelier client mobile/i),
   ).toBeVisible();
   await expect(
-    taskCard.getByText(
+    mobileTaskCard.getByText(
       /synthèse, validation et partage des décisions importantes/i,
     ),
   ).toBeVisible();
@@ -340,14 +345,14 @@ test("keeps task cards compact and operable on a phone-sized viewport", async ({
 
   expect(hasHorizontalOverflow).toBe(false);
 
-  await taskCard
+  await mobileTaskCard
     .getByRole("button", {
       name: /basculer le chrono pour préparation atelier client mobile/i,
     })
     .click({ force: true });
   await page.waitForTimeout(1100);
 
-  await expect(taskCard.getByText(/^actif$/i)).toBeVisible();
+  await expect(mobileTaskCard.getByText(/^actif$/i)).toBeVisible();
   await expect(
     page.getByRole("button", { name: /arrêter le chrono actif/i }),
   ).toBeVisible();

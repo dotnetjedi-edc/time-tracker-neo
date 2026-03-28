@@ -66,22 +66,26 @@ npm run test:all     # Tous les tests (unit + intégration + E2E)
 
 ## CI/CD et déploiement
 
-Le workflow GitHub Actions attend les secrets suivants:
+Le workflow GitHub Actions attend les secrets suivants au niveau du repository:
 
 ```bash
 VITE_CLERK_PUBLISHABLE_KEY
+CLERK_SECRET_KEY
+TURSO_DATABASE_URL
+TURSO_AUTH_TOKEN
 VERCEL_TOKEN
 VERCEL_ORG_ID
 VERCEL_PROJECT_ID
 ```
 
-Les secrets backend sensibles (`CLERK_SECRET_KEY`, `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`) doivent être configurés dans l'environnement Vercel du projet, pas injectés dans le bundle frontend.
+`VITE_CLERK_PUBLISHABLE_KEY` est la seule valeur frontend-safe. Les secrets backend (`CLERK_SECRET_KEY`, `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`) doivent rester dans GitHub Secrets et dans les variables d'environnement Vercel, jamais dans le bundle frontend.
 
 Comportement attendu:
 
-- `main` déploie la production.
-- `develop` déploie le staging.
-- les pull requests déclenchent un preview deploy après validation.
+- `main` déploie la production via `vercel build --prod` puis `vercel deploy --prebuilt --prod`.
+- `develop` déploie le staging via le flux preview Vercel.
+- les pull requests déclenchent un preview deploy après validation et le workflow met à jour un commentaire avec l'URL générée.
+- `workflow_dispatch` permet de relancer manuellement un déploiement `preview`, `staging` ou `production`.
 - les déploiements restent bloqués tant que la build, les tests unitaires ou les tests d'intégration échouent.
 
 ## Notes d'architecture

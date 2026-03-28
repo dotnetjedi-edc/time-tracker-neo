@@ -12,6 +12,9 @@ export interface AuthenticationResult {
 
 let clerkClient: ReturnType<typeof createClerkClient> | null = null;
 
+const bypassAuthForE2E = process.env.E2E_BYPASS_AUTH === "true";
+const bypassUserId = process.env.E2E_BYPASS_USER_ID ?? "e2e-user";
+
 const toWebRequest = (req: VercelRequest): Request => {
   const protocolHeader = req.headers["x-forwarded-proto"];
   const hostHeader = req.headers["x-forwarded-host"] ?? req.headers.host;
@@ -95,6 +98,15 @@ export const getBearerToken = (req: VercelRequest): string | null => {
 export async function authenticateApiRequest(
   req: VercelRequest,
 ): Promise<AuthenticationResult> {
+  if (bypassAuthForE2E) {
+    return {
+      userId: bypassUserId,
+      hasBearerToken: getBearerToken(req) !== null,
+      reason: null,
+      message: null,
+    };
+  }
+
   const hasBearerToken = getBearerToken(req) !== null;
 
   try {
@@ -133,6 +145,10 @@ export async function authenticateApiRequest(
 export async function getAuthenticatedUserId(
   req: VercelRequest,
 ): Promise<string | null> {
+  if (bypassAuthForE2E) {
+    return bypassUserId;
+  }
+
   const result = await authenticateApiRequest(req);
   return result.userId;
 }
