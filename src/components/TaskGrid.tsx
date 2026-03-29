@@ -70,10 +70,24 @@ export function TaskGrid({
     }),
   );
 
-  // Initialize orderedTaskIds only once when component mounts
+  // Keep orderedTaskIds in sync when tasks are added or removed externally
   useEffect(() => {
-    setOrderedTaskIds(tasks.map((task) => task.id));
-  }, []);
+    setOrderedTaskIds((currentIds) => {
+      const taskIdSet = new Set(tasks.map((t) => t.id));
+      const filteredIds = currentIds.filter((id) => taskIdSet.has(id));
+      const existingIdSet = new Set(filteredIds);
+      const newIds = tasks
+        .filter((t) => !existingIdSet.has(t.id))
+        .sort((a, b) => a.position - b.position)
+        .map((t) => t.id);
+
+      if (newIds.length === 0 && filteredIds.length === currentIds.length) {
+        return currentIds;
+      }
+
+      return [...filteredIds, ...newIds];
+    });
+  }, [tasks]);
 
   const tasksById = new Map(tasks.map((task) => [task.id, task]));
   const orderedTasks = orderedTaskIds

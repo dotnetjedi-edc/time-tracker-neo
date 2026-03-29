@@ -201,6 +201,7 @@ function TaskCardSurface({
           type="button"
           onClick={(event) => {
             event.stopPropagation();
+            if (isTimerToggleLocked || isDragInteractionActive) return;
             onToggleTimer(task.id);
           }}
           data-card-control="timer"
