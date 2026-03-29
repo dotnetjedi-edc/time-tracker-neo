@@ -37,9 +37,13 @@ test("creates a tag and a task, runs the timer and exposes weekly totals", async
 
   const sessionClientCard = taskCard(page, "Session client");
 
-  await sessionClientCard.click({ position: { x: 80, y: 72 }, force: true });
+  await sessionClientCard
+    .getByRole("button", { name: /basculer le chrono pour session client/i })
+    .click({ force: true });
   await page.waitForTimeout(2100);
-  await sessionClientCard.click({ position: { x: 80, y: 72 }, force: true });
+  await sessionClientCard
+    .getByRole("button", { name: /basculer le chrono pour session client/i })
+    .click({ force: true });
 
   await expect(sessionClientCard.getByText("00:00:02")).toBeVisible();
 
@@ -219,7 +223,9 @@ test("keeps the active timer running when the active card is reordered", async (
   const alphaCard = taskCard(page, "Alpha");
   const betaCard = taskCard(page, "Beta");
 
-  await alphaCard.click({ position: { x: 80, y: 72 }, force: true });
+  await alphaCard
+    .getByRole("button", { name: /basculer le chrono pour alpha/i })
+    .click({ force: true });
   await page.waitForTimeout(1100);
 
   const alphaCardBox = await alphaCard.boundingBox();

@@ -2,7 +2,6 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type {
   ComponentPropsWithoutRef,
-  MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
 } from "react";
 import { useEffect, useRef } from "react";
@@ -62,25 +61,10 @@ function TaskCardSurface({
   setNodeRef,
   isDragInteractionActive = false,
 }: TaskCardSurfaceProps) {
-  const handleCardClick = (event: ReactMouseEvent<HTMLElement>) => {
-    const target = event.target as HTMLElement;
-
-    if (target.closest("[data-card-control]")) {
-      return;
-    }
-
-    if (isDragging || isTimerToggleLocked || isDragInteractionActive) {
-      return;
-    }
-
-    onToggleTimer(task.id);
-  };
-
   return (
     <article
       ref={setNodeRef}
       data-testid={isOverlay ? undefined : `task-card-${task.id}`}
-      onClick={handleCardClick}
       onPointerCancel={onPointerCancel}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -129,9 +113,19 @@ function TaskCardSurface({
 
       <button
         type="button"
-        disabled={isDragging && !isOverlay}
+        onClick={(event) => {
+          event.stopPropagation();
+          if (isTimerToggleLocked || isDragInteractionActive) {
+            return;
+          }
+          onToggleTimer(task.id);
+        }}
+        data-card-control="toggle"
+        onPointerDown={(event) => event.stopPropagation()}
+        onTouchStart={(event) => event.stopPropagation()}
+        disabled={(isDragging && !isOverlay) || isTimerToggleLocked || isDragInteractionActive}
         aria-label={`Basculer le chrono pour ${task.name}`}
-        className="mt-3 flex w-full flex-1 flex-col items-start justify-between text-left disabled:pointer-events-none sm:mt-4"
+        className="mt-3 flex w-full flex-1 flex-col items-start justify-between rounded-2xl text-left transition-colors hover:bg-ink/[0.04] disabled:pointer-events-none sm:mt-4"
       >
         <div className="min-w-0 space-y-2 sm:space-y-3">
           <div className="flex items-center gap-2">
