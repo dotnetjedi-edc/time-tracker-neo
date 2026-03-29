@@ -81,7 +81,11 @@ const parseSeedBody = (value: unknown): SeedBody | null => {
     return null;
   }
 
-  if (activeTimer !== undefined && activeTimer !== null && !isObject(activeTimer)) {
+  if (
+    activeTimer !== undefined &&
+    activeTimer !== null &&
+    !isObject(activeTimer)
+  ) {
     return null;
   }
 
@@ -148,7 +152,8 @@ export default createRequestHandler(
     for (const session of body.sessions ?? []) {
       const id = session.id ?? randomUUID();
       const createdAt = session.createdAt ?? session.startedAt;
-      const updatedAt = session.updatedAt ?? session.endedAt ?? session.startedAt;
+      const updatedAt =
+        session.updatedAt ?? session.endedAt ?? session.startedAt;
       await db.execute(
         `INSERT INTO sessions (
           id, user_id, task_id, origin, started_at, ended_at, date,

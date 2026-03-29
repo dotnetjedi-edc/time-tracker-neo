@@ -54,7 +54,9 @@ const taskCard = (page: Page, taskName: string) =>
     .first();
 
 const dragHandle = (page: Page, taskName: string) =>
-  page.getByRole("button", { name: new RegExp(`^réorganiser ${taskName}$`, "i") });
+  page.getByRole("button", {
+    name: new RegExp(`^réorganiser ${taskName}$`, "i"),
+  });
 
 const seedWorkspace = async (
   page: Page,
@@ -99,7 +101,9 @@ test("runs the timer and exposes weekly totals for a seeded task", async ({
   await page.waitForTimeout(2100);
   await sessionClientCard.click({ force: true });
 
-  await expect(sessionClientCard.getByText(/00:00:0[2-9]/i).last()).toBeVisible();
+  await expect(
+    sessionClientCard.getByText(/00:00:0[2-9]/i).last(),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: /vue calendrier/i }).click();
   await expect(
@@ -173,7 +177,10 @@ test("reload keeps an active timer running until the user stops it manually", as
   await expect(focusCard.getByText(/^prêt$/i).first()).toBeVisible();
 });
 
-test("allows manual time entry and exposes task history", async ({ page, request }) => {
+test("allows manual time entry and exposes task history", async ({
+  page,
+  request,
+}) => {
   await seedWorkspace(page, request, {
     tasks: [
       {
@@ -250,16 +257,28 @@ test("reorders task cards with drag and drop", async ({ page, request }) => {
     secondCardHandleBox.y + secondCardHandleBox.height / 2,
   );
   await page.mouse.down();
-  await page.mouse.move(firstCardBox.x + firstCardBox.width / 2, firstCardBox.y + 12, {
-    steps: 20,
-  });
+  await page.mouse.move(
+    firstCardBox.x + firstCardBox.width / 2,
+    firstCardBox.y + 12,
+    {
+      steps: 20,
+    },
+  );
   await page.mouse.up();
 
   await expect(
-    page.locator("main article").nth(0).getByRole("heading", { level: 3 }).first(),
+    page
+      .locator("main article")
+      .nth(0)
+      .getByRole("heading", { level: 3 })
+      .first(),
   ).toHaveText("Beta");
   await expect(
-    page.locator("main article").nth(1).getByRole("heading", { level: 3 }).first(),
+    page
+      .locator("main article")
+      .nth(1)
+      .getByRole("heading", { level: 3 })
+      .first(),
   ).toHaveText("Alpha");
 });
 
@@ -344,10 +363,18 @@ test("keeps the active timer running when the active card is reordered", async (
   await page.mouse.up();
 
   await expect(
-    page.locator("main article").nth(0).getByRole("heading", { level: 3 }).first(),
+    page
+      .locator("main article")
+      .nth(0)
+      .getByRole("heading", { level: 3 })
+      .first(),
   ).toHaveText("Beta");
   await expect(
-    page.locator("main article").nth(1).getByRole("heading", { level: 3 }).first(),
+    page
+      .locator("main article")
+      .nth(1)
+      .getByRole("heading", { level: 3 })
+      .first(),
   ).toHaveText("Alpha");
   await expect(page.getByRole("banner").getByText("Alpha")).toBeVisible();
   await expect(alphaCard.getByText(/^actif$/i).first()).toBeVisible();
