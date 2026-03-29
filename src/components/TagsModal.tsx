@@ -39,7 +39,7 @@ export function TagsModal({
       aria-modal="true"
       aria-label="Gestion des tags"
     >
-      <div className="w-full max-w-3xl max-h-[90vh] rounded-[2rem] bg-white shadow-card flex flex-col overflow-hidden">
+      <div className="w-full max-w-3xl max-h-[90dvh] rounded-[2rem] bg-white shadow-card flex flex-col overflow-hidden">
         {/* Header - Fixed */}
         <div className="flex-shrink-0 border-b border-ink/10 px-6 py-4 sm:py-5 bg-white">
           <div className="flex items-start justify-between gap-4">
@@ -134,7 +134,7 @@ export function TagsModal({
             onClick={onClose}
             className="w-full rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-ink/90"
           >
-            Fermer
+            Terminer
           </button>
         </div>
       </div>

@@ -1,5 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const e2ePort = Number(process.env.PLAYWRIGHT_E2E_PORT ?? "3100");
+const e2eBaseUrl = `http://127.0.0.1:${e2ePort}`;
+
 export default defineConfig({
   testDir: "./e2e",
   timeout: 30_000,
@@ -10,20 +13,21 @@ export default defineConfig({
   retries: 0,
   reporter: "list",
   use: {
-    baseURL: "http://127.0.0.1:3000",
+    baseURL: e2eBaseUrl,
     trace: "on-first-retry",
   },
   webServer: {
     command: "npm run dev",
     env: {
       ...process.env,
+      PORT: String(e2ePort),
       E2E_BYPASS_AUTH: "true",
       E2E_BYPASS_USER_ID: "e2e-user",
       VITE_E2E_BYPASS_AUTH: "true",
       VITE_E2E_BYPASS_USER_ID: "e2e-user",
     },
-    url: "http://127.0.0.1:3000",
-    reuseExistingServer: true,
+    url: e2eBaseUrl,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
   projects: [
