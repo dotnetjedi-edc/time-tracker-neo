@@ -21,6 +21,7 @@ body {
 
 html.drag-scroll-lock,
 body.drag-scroll-lock {
+  overflow: hidden;
   overscroll-behavior: none;
   touch-action: none;
   -webkit-user-select: none;

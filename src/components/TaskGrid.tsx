@@ -70,13 +70,10 @@ export function TaskGrid({
     }),
   );
 
+  // Initialize orderedTaskIds only once when component mounts
   useEffect(() => {
-    if (draggedTaskId !== null) {
-      return;
-    }
-
     setOrderedTaskIds(tasks.map((task) => task.id));
-  }, [draggedTaskId, tasks]);
+  }, []);
 
   const tasksById = new Map(tasks.map((task) => [task.id, task]));
   const orderedTasks = orderedTaskIds
@@ -310,7 +307,7 @@ export function TaskGrid({
       onDragCancel={handleDragCancel}
     >
       <SortableContext items={orderedTaskIds} strategy={rectSortingStrategy}>
-        <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3 2xl:grid-cols-4">
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-3 sm:gap-4 xl:grid-cols-3 2xl:grid-cols-4">
           {orderedTasks.map((task) => (
             <TaskCard
               key={task.id}
@@ -330,7 +327,7 @@ export function TaskGrid({
           <button
             type="button"
             onClick={onAddTask}
-            className="flex min-h-[176px] items-center justify-center rounded-[1.75rem] border border-dashed border-ink/20 bg-white/45 p-4 text-base font-semibold text-ink/60 transition hover:border-ink/40 hover:bg-white/70 hover:text-ink sm:min-h-[220px] sm:p-6 sm:text-lg"
+            className="flex sm:min-h-[176px] sm:items-center sm:justify-center sm:rounded-[1.75rem] sm:border sm:border-dashed sm:border-ink/20 sm:bg-white/45 sm:p-4 sm:text-base sm:font-semibold sm:text-ink/60 sm:transition sm:hover:border-ink/40 sm:hover:bg-white/70 sm:hover:text-ink sm:min-h-[220px] sm:p-6 sm:text-lg items-center justify-center px-3 py-2 rounded-lg border-b border-ink/8 bg-white/90 text-sm font-semibold text-ink/40 hover:text-ink/60"
           >
             + Nouvelle tâche
           </button>

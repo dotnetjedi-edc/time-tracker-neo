@@ -497,7 +497,22 @@ export const useTimeTrackerStore = create<TimeTrackerState>()((set, get) => ({
       );
       const taskById = new Map(updatedTasks.map((task) => [task.id, task]));
       set((state) => ({
-        tasks: reorderedTasks.map((task) => taskById.get(task.id) ?? task),
+        tasks: syncTaskTotals(
+          reorderedTasks.map((task) => {
+            const updatedTask = taskById.get(task.id);
+
+            if (!updatedTask) {
+              return task;
+            }
+
+            return {
+              ...task,
+              ...updatedTask,
+              totalTimeSeconds: task.totalTimeSeconds,
+            };
+          }),
+          state.sessions,
+        ),
       }));
     } catch (error) {
       set({
@@ -551,6 +566,19 @@ export const useTimeTrackerStore = create<TimeTrackerState>()((set, get) => ({
               session.taskId === taskId,
           );
 
+    const optimisticActiveTimer: ActiveTimer = {
+      taskId,
+      sessionId: resumableSession?.id ?? `pending-${taskId}`,
+      segmentStartTime: startedAt,
+      updatedAt: startedAt,
+    };
+
+    set({
+      activeTimer: optimisticActiveTimer,
+      resumeCandidateSessionId: null,
+      lastError: null,
+    });
+
     try {
       const nextAuditEventId = createAuditEventId(state.sessions);
       const session = resumableSession
@@ -595,11 +623,17 @@ export const useTimeTrackerStore = create<TimeTrackerState>()((set, get) => ({
               candidate.id === session.id ? session : candidate,
             )
           : [...currentState.sessions, session],
-        activeTimer,
+        activeTimer: {
+          ...activeTimer,
+          segmentStartTime: startedAt,
+          updatedAt: activeTimer.updatedAt ?? startedAt,
+        },
         resumeCandidateSessionId: null,
       }));
     } catch (error) {
       set({
+        activeTimer: null,
+        resumeCandidateSessionId: state.resumeCandidateSessionId,
         lastError: resolveErrorMessage(
           error,
           "Impossible de démarrer le chrono.",

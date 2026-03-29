@@ -484,4 +484,101 @@ describe("useTimeTrackerStore", () => {
     expect(state.tasks[0]?.tagIds).toEqual([clientTag!.id]);
     expect(state.selectedTagIds).toEqual([]);
   });
+
+  it("preserves task totals when reorder API responses return stale totals", async () => {
+    const tasks: Task[] = [
+      {
+        id: "1",
+        name: "Tâche A",
+        comment: null,
+        totalTimeSeconds: 3600,
+        position: 0,
+        tagIds: [],
+        lifecycle: { status: "active", archivedAt: null },
+        createdAt: "2026-03-20T08:00:00.000Z",
+        updatedAt: "2026-03-20T08:00:00.000Z",
+      },
+      {
+        id: "2",
+        name: "Tâche B",
+        comment: null,
+        totalTimeSeconds: 1800,
+        position: 1,
+        tagIds: [],
+        lifecycle: { status: "active", archivedAt: null },
+        createdAt: "2026-03-20T08:00:00.000Z",
+        updatedAt: "2026-03-20T08:00:00.000Z",
+      },
+    ];
+
+    const sessions: TaskSession[] = [
+      {
+        id: "1",
+        taskId: "1",
+        origin: "manual",
+        startedAt: "2026-03-20T08:00:00.000Z",
+        endedAt: "2026-03-20T09:00:00.000Z",
+        date: "2026-03-20",
+        segments: [
+          {
+            id: 1,
+            startTime: "2026-03-20T08:00:00.000Z",
+            endTime: "2026-03-20T09:00:00.000Z",
+            durationSeconds: 3600,
+          },
+        ],
+        auditEvents: [],
+        createdAt: "2026-03-20T09:00:00.000Z",
+        updatedAt: "2026-03-20T09:00:00.000Z",
+      },
+      {
+        id: "2",
+        taskId: "2",
+        origin: "manual",
+        startedAt: "2026-03-20T10:00:00.000Z",
+        endedAt: "2026-03-20T10:30:00.000Z",
+        date: "2026-03-20",
+        segments: [
+          {
+            id: 2,
+            startTime: "2026-03-20T10:00:00.000Z",
+            endTime: "2026-03-20T10:30:00.000Z",
+            durationSeconds: 1800,
+          },
+        ],
+        auditEvents: [],
+        createdAt: "2026-03-20T10:30:00.000Z",
+        updatedAt: "2026-03-20T10:30:00.000Z",
+      },
+    ];
+
+    const apiClient = createTestApiClient({ tasks, sessions, tags: [] });
+    const originalUpdate = apiClient.tasks.update;
+    apiClient.tasks.update = async (id, patch) => {
+      const updated = await originalUpdate(id, patch);
+      return {
+        ...updated,
+        totalTimeSeconds: 0,
+      };
+    };
+
+    useTimeTrackerStore.setState({
+      ...useTimeTrackerStore.getState(),
+      tasks,
+      sessions,
+      tags: [],
+      activeTimer: null,
+      isInitialized: true,
+      isLoading: false,
+      lastError: null,
+    });
+    setTimeTrackerApiClientForTesting(apiClient);
+
+    await useTimeTrackerStore.getState().setTaskOrder(["2", "1"]);
+
+    const state = useTimeTrackerStore.getState();
+    expect(state.tasks.map((task) => task.id)).toEqual(["2", "1"]);
+    expect(state.tasks[0]?.totalTimeSeconds).toBe(1800);
+    expect(state.tasks[1]?.totalTimeSeconds).toBe(3600);
+  });
 });

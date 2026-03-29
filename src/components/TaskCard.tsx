@@ -86,30 +86,130 @@ function TaskCardSurface({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       className={[
-        "group relative flex min-h-[176px] flex-col overflow-hidden rounded-[1.75rem] border p-3.5 shadow-card transition-[transform,opacity,box-shadow,border-color] duration-200 ease-out sm:min-h-[220px] sm:p-5",
+        // Base layout
+        "group relative flex items-center overflow-hidden rounded-[1.75rem] border transition-[transform,opacity,box-shadow,border-color] duration-200 ease-out transform-gpu",
+
+        // Mobile list layout (compact row)
+        "gap-3 px-3 py-2 border-b border-ink/8 sm:gap-4 sm:min-h-[220px] sm:p-5 sm:flex-col sm:border-b-0 sm:rounded-[1.75rem]",
+
+        // Active state
         isActive
-          ? "animate-pulseGlow border-mint/50 bg-gradient-to-br from-mint/30 via-white to-gold/25"
-          : "border-white/70 bg-white/80 hover:-translate-y-1 hover:border-ink/10",
+          ? "sm:animate-pulseGlow sm:border-mint/50 sm:bg-gradient-to-br sm:from-mint/30 sm:via-white sm:to-gold/25 bg-white/90"
+          : "sm:border-white/70 sm:bg-white/80 sm:hover:-translate-y-1 sm:hover:border-ink/10 bg-white/80",
+
+        // Dragging state
         isDragging && !isOverlay ? "opacity-0" : "opacity-100",
-        isOverlay
-          ? "z-30 rotate-1 shadow-2xl ring-1 ring-ink/10 cursor-grabbing"
-          : "",
-        "transform-gpu",
+
+        // Overlay state
+        isOverlay ? "z-30 rotate-1 shadow-2xl ring-1 ring-ink/10" : "",
       ].join(" ")}
     >
-      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-coral via-gold to-mint" />
-      <div className="flex items-start justify-between gap-3 sm:gap-4">
+      {/* Gradient bar - mobile list view */}
+      <div className="sm:absolute sm:inset-x-0 sm:top-0 sm:h-1 sm:bg-gradient-to-r sm:from-coral sm:via-gold sm:to-mint h-1 bg-gradient-to-r from-coral via-gold to-mint rounded-t-lg" />
+
+      {/* Drag handle - unified for mobile and desktop */}
+      <button
+        type="button"
+        data-card-control="drag-handle"
+        className="flex-shrink-0 h-8 w-8 sm:h-10 sm:w-10 inline-flex items-center justify-center rounded-full border border-ink/10 bg-white/80 text-ink/55 transition hover:border-ink/30 hover:text-ink touch-none"
+        aria-label={`Réorganiser ${task.name}`}
+        tabIndex={isDragging && !isOverlay ? -1 : undefined}
+        {...dragHandleProps}
+      >
+        <GripVertical size={14} className="sm:w-4 sm:h-4" />
+      </button>
+
+      {/* Task info zone - middle */}
+      <div className="flex-1 min-w-0">
+        {/* Desktop version - hidden on mobile */}
+        <div className="hidden sm:flex sm:items-start sm:justify-between sm:gap-4">
+          <div className="min-w-0 space-y-2 sm:space-y-3 flex-1">
+            <div className="flex items-center gap-2">
+              <span
+                className={[
+                  "inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] sm:gap-2 sm:px-3 sm:text-xs sm:tracking-[0.18em]",
+                  isActive ? "bg-mint/35 text-ink" : "bg-ink/5 text-ink/50",
+                ].join(" ")}
+              >
+                {isActive ? <Square size={12} /> : <Play size={12} />}
+                {isActive ? "Actif" : "Prêt"}
+              </span>
+            </div>
+
+            <div className="min-w-0">
+              <h3 className="break-words overflow-hidden text-[1.65rem] font-semibold leading-tight text-ink">
+                {task.name}
+              </h3>
+              {task.comment ? (
+                <p className="mt-1.5 break-words overflow-hidden text-sm leading-6 text-ink/62">
+                  {task.comment}
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="flex gap-3 flex-shrink-0">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onEdit(task);
+              }}
+              data-card-control="secondary"
+              onPointerDown={(event) => event.stopPropagation()}
+              onTouchStart={(event) => event.stopPropagation()}
+              disabled={isDragging && !isOverlay}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-ink/10 bg-white/80 text-ink/55 transition hover:border-ink/30 hover:text-ink disabled:pointer-events-none"
+              aria-label={`Modifier ${task.name}`}
+            >
+              <Pencil size={16} />
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile version - compact row */}
+        <div className="sm:hidden flex flex-col flex-1">
+          <div className="flex items-baseline gap-2">
+            <h3 className="text-sm font-semibold text-ink truncate">
+              {task.name}
+            </h3>
+            <span
+              className={[
+                "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide flex-shrink-0",
+                isActive ? "bg-mint/35 text-ink" : "bg-ink/5 text-ink/50",
+              ].join(" ")}
+            >
+              {isActive ? <Square size={10} /> : <Play size={10} />}
+            </span>
+          </div>
+          <p className="text-[11px] text-ink/60 truncate">
+            {taskTags.length === 0
+              ? "Sans tag"
+              : taskTags.map((t) => t.name).join(", ")}
+          </p>
+        </div>
+      </div>
+
+      {/* Time display - mobile right side */}
+      <p className="sm:hidden text-base font-mono font-semibold text-ink">
+        {formatClock(liveSeconds)}
+      </p>
+
+      {/* Mobile action icons - right side */}
+      <div className="sm:hidden flex gap-1 flex-shrink-0">
         <button
           type="button"
-          data-card-control="drag-handle"
-          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-ink/10 bg-white/80 text-ink/55 transition hover:border-ink/30 hover:text-ink"
-          aria-label={`Réorganiser ${task.name}`}
-          tabIndex={isDragging && !isOverlay ? -1 : undefined}
-          {...dragHandleProps}
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleTimer(task.id);
+          }}
+          data-card-control="timer"
+          disabled={isDragging && !isOverlay}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-ink/60 hover:text-ink hover:bg-ink/5 transition disabled:pointer-events-none"
+          aria-label={`Basculer le chrono pour ${task.name}`}
         >
-          <GripVertical size={15} />
+          {isActive ? <Square size={14} /> : <Play size={14} />}
         </button>
-
         <button
           type="button"
           onClick={(event) => {
@@ -120,20 +220,16 @@ function TaskCardSurface({
           onPointerDown={(event) => event.stopPropagation()}
           onTouchStart={(event) => event.stopPropagation()}
           disabled={isDragging && !isOverlay}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-ink/10 bg-white/80 text-ink/55 transition hover:border-ink/30 hover:text-ink disabled:pointer-events-none sm:h-10 sm:w-10"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-ink/60 hover:text-ink hover:bg-ink/5 transition disabled:pointer-events-none"
           aria-label={`Modifier ${task.name}`}
         >
-          <Pencil size={16} />
+          <Pencil size={14} />
         </button>
       </div>
 
-      <button
-        type="button"
-        disabled={isDragging && !isOverlay}
-        aria-label={`Basculer le chrono pour ${task.name}`}
-        className="mt-3 flex w-full flex-1 flex-col items-start justify-between text-left disabled:pointer-events-none sm:mt-4"
-      >
-        <div className="min-w-0 space-y-2 sm:space-y-3">
+      {/* Desktop card content - below the header row */}
+      <div className="hidden sm:flex sm:w-full sm:flex-1 sm:flex-col sm:items-start sm:justify-between sm:text-left sm:mt-3">
+        <div className="min-w-0 space-y-3 w-full">
           <div className="flex items-center gap-2">
             <span
               className={[
@@ -147,72 +243,60 @@ function TaskCardSurface({
           </div>
 
           <div className="min-w-0">
-            <h3 className="break-words overflow-hidden text-[1.15rem] font-semibold leading-tight text-ink [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] sm:block sm:overflow-visible sm:text-[1.65rem] sm:[-webkit-line-clamp:unset]">
-              {task.name}
-            </h3>
-            {task.comment ? (
-              <p className="mt-1 break-words overflow-hidden text-[12px] leading-4 text-ink/62 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] sm:mt-1.5 sm:block sm:overflow-visible sm:text-sm sm:leading-6 sm:[-webkit-line-clamp:unset]">
-                {task.comment}
-              </p>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="mt-3 w-full space-y-2.5 sm:mt-5 sm:space-y-4">
-          <p className="font-mono text-[1.8rem] font-semibold leading-none tracking-tight text-ink sm:text-[2.7rem]">
-            {formatClock(liveSeconds)}
-          </p>
-
-          <div className="flex flex-wrap gap-1.5 sm:gap-2">
-            {taskTags.length === 0 ? (
-              <span className="rounded-full bg-ink/5 px-2 py-1 text-[10px] font-medium text-ink/45 sm:px-3 sm:text-xs">
-                Sans tag
-              </span>
-            ) : (
-              taskTags.map((tag) => (
-                <span
-                  key={tag.id}
-                  className={`rounded-full px-2 py-1 text-[10px] font-semibold sm:px-3 sm:text-xs ${getTagTone(tag.color).badge}`}
-                >
-                  {tag.name}
+            <p className="text-[2.7rem] font-mono font-semibold leading-none tracking-tight text-ink">
+              {formatClock(liveSeconds)}
+            </p>
+            <div className="flex flex-wrap gap-2 mt-3">
+              {taskTags.length === 0 ? (
+                <span className="rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-ink/45">
+                  Sans tag
                 </span>
-              ))
-            )}
+              ) : (
+                taskTags.map((tag) => (
+                  <span
+                    key={tag.id}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${getTagTone(tag.color).badge}`}
+                  >
+                    {tag.name}
+                  </span>
+                ))
+              )}
+            </div>
           </div>
         </div>
-      </button>
 
-      <div className="mt-2.5 flex flex-wrap gap-1.5 sm:mt-4 sm:gap-3">
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onOpenManualTime(task);
-          }}
-          data-card-control="secondary"
-          onPointerDown={(event) => event.stopPropagation()}
-          onTouchStart={(event) => event.stopPropagation()}
-          disabled={isDragging && !isOverlay}
-          className="inline-flex min-h-9 items-center gap-1.5 whitespace-nowrap rounded-full border border-ink/10 bg-white/85 px-2.5 py-1.5 text-[12px] font-semibold text-ink/65 transition hover:border-ink/30 hover:text-ink disabled:pointer-events-none sm:min-h-10 sm:gap-2 sm:px-4 sm:py-2 sm:text-sm"
-        >
-          <Clock3 size={14} />
-          Temps manuel
-        </button>
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onOpenHistory(task);
-          }}
-          data-card-control="secondary"
-          onPointerDown={(event) => event.stopPropagation()}
-          onTouchStart={(event) => event.stopPropagation()}
-          disabled={isDragging && !isOverlay}
-          className="inline-flex min-h-9 items-center gap-1.5 whitespace-nowrap rounded-full border border-ink/10 bg-white/85 px-2.5 py-1.5 text-[12px] font-semibold text-ink/65 transition hover:border-ink/30 hover:text-ink disabled:pointer-events-none sm:min-h-10 sm:gap-2 sm:px-4 sm:py-2 sm:text-sm"
-        >
-          <History size={14} />
-          Historique
-        </button>
+        <div className="flex flex-wrap gap-3 mt-4 w-full">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenManualTime(task);
+            }}
+            data-card-control="secondary"
+            onPointerDown={(event) => event.stopPropagation()}
+            onTouchStart={(event) => event.stopPropagation()}
+            disabled={isDragging && !isOverlay}
+            className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-full border border-ink/10 bg-white/85 px-4 py-2 text-sm font-semibold text-ink/65 transition hover:border-ink/30 hover:text-ink disabled:pointer-events-none"
+          >
+            <Clock3 size={14} />
+            Temps manuel
+          </button>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenHistory(task);
+            }}
+            data-card-control="secondary"
+            onPointerDown={(event) => event.stopPropagation()}
+            onTouchStart={(event) => event.stopPropagation()}
+            disabled={isDragging && !isOverlay}
+            className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-full border border-ink/10 bg-white/85 px-4 py-2 text-sm font-semibold text-ink/65 transition hover:border-ink/30 hover:text-ink disabled:pointer-events-none"
+          >
+            <History size={14} />
+            Historique
+          </button>
+        </div>
       </div>
     </article>
   );
