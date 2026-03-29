@@ -39,7 +39,7 @@ export function TagsModal({
       aria-modal="true"
       aria-label="Gestion des tags"
     >
-      <div className="w-full max-w-3xl rounded-[2rem] bg-white p-6 shadow-card sm:p-8">
+      <div className="flex max-h-[90dvh] w-full max-w-3xl flex-col overflow-y-auto rounded-[2rem] bg-white p-6 shadow-card sm:p-8">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-ink/45">
@@ -58,7 +58,7 @@ export function TagsModal({
           </button>
         </div>
 
-        <section className="mt-8 rounded-[1.5rem] border border-ink/8 bg-mist/40 p-5">
+        <section className="mt-4 rounded-[1.5rem] border border-ink/8 bg-mist/40 p-5 sm:mt-8">
           <h3 className="text-lg font-semibold text-ink">Créer un tag</h3>
           <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-center">
             <input
