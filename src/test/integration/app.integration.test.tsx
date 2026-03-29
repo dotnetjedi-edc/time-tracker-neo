@@ -623,7 +623,7 @@ describe("Time Tracker integration", () => {
     ).toBeInTheDocument();
   }, 10000);
 
-  it("starts, switches, and stops timers from simple task-card clicks", async () => {
+  it("starts, switches, and stops timers from task-card toggle button clicks", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-03-20T10:00:00.000Z"));
 
@@ -667,7 +667,11 @@ describe("Time Tracker integration", () => {
     const betaCard = screen.getByTestId("task-card-2");
 
     await act(async () => {
-      fireEvent.click(alphaCard);
+      fireEvent.click(
+        within(alphaCard).getByRole("button", {
+          name: /basculer le chrono pour alpha/i,
+        }),
+      );
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -679,7 +683,11 @@ describe("Time Tracker integration", () => {
     });
 
     await act(async () => {
-      fireEvent.click(betaCard);
+      fireEvent.click(
+        within(betaCard).getByRole("button", {
+          name: /basculer le chrono pour beta/i,
+        }),
+      );
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -693,7 +701,11 @@ describe("Time Tracker integration", () => {
     });
 
     await act(async () => {
-      fireEvent.click(betaCard);
+      fireEvent.click(
+        within(betaCard).getByRole("button", {
+          name: /basculer le chrono pour beta/i,
+        }),
+      );
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -704,7 +716,7 @@ describe("Time Tracker integration", () => {
     vi.useRealTimers();
   }, 10000);
 
-  it("ignores card clicks while drag lifecycle locking is active", () => {
+  it("ignores toggle button clicks while drag lifecycle locking is active", () => {
     const onToggleTimer = vi.fn();
 
     render(
@@ -730,7 +742,9 @@ describe("Time Tracker integration", () => {
       />,
     );
 
-    fireEvent.click(screen.getByTestId("task-card-1"));
+    fireEvent.click(
+      screen.getByRole("button", { name: /basculer le chrono pour alpha/i }),
+    );
 
     expect(onToggleTimer).not.toHaveBeenCalled();
     expect(screen.getByText(/^actif$/i)).toBeVisible();
