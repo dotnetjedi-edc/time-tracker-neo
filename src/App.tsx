@@ -6,7 +6,13 @@ import {
   SignedOut,
   useAuth,
 } from "@clerk/clerk-react";
-import { useEffect, useEffectEvent, useMemo, useState } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useState,
+  useCallback,
+} from "react";
 import type { Task, TaskDraft } from "./types";
 import { Header } from "./components/Header";
 import { TaskGrid } from "./components/TaskGrid";
@@ -17,6 +23,7 @@ import { WeeklyView } from "./components/WeeklyView";
 import { createTimeTrackerApiClient } from "./lib/api";
 import { differenceInSeconds, formatDateTime } from "./lib/time";
 import { useTimeTrackerStore } from "./store/useTimeTrackerStore";
+import { useNavigationStack } from "./hooks/useNavigationStack";
 
 const bypassAuthForE2E = import.meta.env.VITE_E2E_BYPASS_AUTH === "true";
 const bypassUserId = import.meta.env.VITE_E2E_BYPASS_USER_ID ?? "e2e-user";
@@ -81,10 +88,79 @@ function AuthenticatedWorkspace() {
   >("manual");
   const [now, setNow] = useState(() => Date.now());
 
+  // Navigation stack: track modal open state for back button
+  const [modalStack, setModalStack] = useState<
+    Array<{
+      type: "task" | "sessions" | "tags";
+      timestamp: number;
+    }>
+  >([]);
+
+  const { handleBack: handleBackNavigation, pushState } = useNavigationStack();
+
+  // Track which modal is "topmost" for back button handling
+  const topmostModal = modalStack[modalStack.length - 1]?.type ?? null;
+
   useEffect(() => {
     const timerId = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timerId);
   }, []);
+
+  // Handle back button and Escape key to close topmost modal
+  useEffect(() => {
+    const handlePopstate = () => {
+      // Close the topmost modal
+      if (sessionsModalOpen) {
+        setSessionsModalOpen(false);
+        setModalStack((prev) => prev.slice(0, -1));
+      } else if (taskModalOpen) {
+        setTaskModalOpen(false);
+        setEditingTask(null);
+        setModalStack((prev) => prev.slice(0, -1));
+      } else if (tagsModalOpen) {
+        setTagsModalOpen(false);
+        setModalStack((prev) => prev.slice(0, -1));
+      } else {
+        // At root, show notification
+        const event = new CustomEvent("navigationStack:atRoot");
+        window.dispatchEvent(event);
+      }
+    };
+
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        // Close the topmost modal
+        if (sessionsModalOpen) {
+          setSessionsModalOpen(false);
+          setModalStack((prev) => prev.slice(0, -1));
+        } else if (taskModalOpen) {
+          setTaskModalOpen(false);
+          setEditingTask(null);
+          setModalStack((prev) => prev.slice(0, -1));
+        } else if (tagsModalOpen) {
+          setTagsModalOpen(false);
+          setModalStack((prev) => prev.slice(0, -1));
+        }
+      }
+    };
+
+    window.addEventListener("popstate", handlePopstate);
+    window.addEventListener("keydown", handleEscapeKey);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopstate);
+      window.removeEventListener("keydown", handleEscapeKey);
+    };
+  }, [taskModalOpen, tagsModalOpen, sessionsModalOpen]);
+
+  // Clear drag-scroll-lock when any modal opens (fix scroll issues)
+  useEffect(() => {
+    if (taskModalOpen || tagsModalOpen || sessionsModalOpen) {
+      // Remove drag-scroll-lock to allow modal content to scroll
+      document.documentElement.classList.remove("drag-scroll-lock");
+      document.body.classList.remove("drag-scroll-lock");
+    }
+  }, [taskModalOpen, tagsModalOpen, sessionsModalOpen]);
 
   const initializeWorkspace = useEffectEvent(async () => {
     await initialize(createTimeTrackerApiClient(getToken));
@@ -199,6 +275,11 @@ function AuthenticatedWorkspace() {
     setSessionTask(task);
     setSessionsModalView(view);
     setSessionsModalOpen(true);
+    setModalStack((prev) => [
+      ...prev,
+      { type: "sessions", timestamp: Date.now() },
+    ]);
+    pushState("sessions", { taskId: task.id, view });
   };
 
   const taskSessions = sessionTask
@@ -259,7 +340,14 @@ function AuthenticatedWorkspace() {
           onToggleView={() =>
             setCurrentView(currentView === "grid" ? "week" : "grid")
           }
-          onOpenTags={() => setTagsModalOpen(true)}
+          onOpenTags={() => {
+            setTagsModalOpen(true);
+            setModalStack((prev) => [
+              ...prev,
+              { type: "tags", timestamp: Date.now() },
+            ]);
+            pushState("tags");
+          }}
           onSelectTag={toggleSelectedTag}
           onResetFilters={resetFilters}
           onStopActiveTimer={() => void stopTimer(new Date().toISOString())}
@@ -276,12 +364,22 @@ function AuthenticatedWorkspace() {
               onEditTask={(task) => {
                 setEditingTask(task);
                 setTaskModalOpen(true);
+                setModalStack((prev) => [
+                  ...prev,
+                  { type: "task", timestamp: Date.now() },
+                ]);
+                pushState("task", { taskId: task.id, mode: "edit" });
               }}
               onOpenManualTime={(task) => openSessionsModal(task, "manual")}
               onOpenHistory={(task) => openSessionsModal(task, "history")}
               onAddTask={() => {
                 setEditingTask(null);
                 setTaskModalOpen(true);
+                setModalStack((prev) => [
+                  ...prev,
+                  { type: "task", timestamp: Date.now() },
+                ]);
+                pushState("task", { mode: "create" });
               }}
               onReorder={(taskIds) => void setTaskOrder(taskIds)}
             />

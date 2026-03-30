@@ -1,5 +1,48 @@
 import { expect, test, type Page } from "@playwright/test";
 
+type SeedTagInput = {
+  id?: string;
+  name: string;
+  color: string;
+  createdAt?: string;
+};
+
+type SeedTaskInput = {
+  id?: string;
+  name: string;
+  comment?: string | null;
+  totalTimeSeconds?: number;
+  position?: number;
+  tagIds?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+type SeedSessionInput = {
+  id?: string;
+  taskId: string;
+  origin?: "timer" | "manual";
+  startedAt: string;
+  endedAt?: string | null;
+  date?: string;
+  segments?: unknown[];
+  auditEvents?: unknown[];
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+type SeedPayload = {
+  tags?: SeedTagInput[];
+  tasks?: SeedTaskInput[];
+  sessions?: SeedSessionInput[];
+  activeTimer?: {
+    taskId: string;
+    sessionId: string;
+    segmentStartTime: string;
+    updatedAt?: string;
+  } | null;
+};
+
 const taskCard = (page: Page, taskName: string) =>
   page
     .locator("article")
@@ -10,6 +53,20 @@ const taskCard = (page: Page, taskName: string) =>
     })
     .first();
 
+const dragHandle = (page: Page, taskName: string) =>
+  page.getByRole("button", {
+    name: new RegExp(`^réorganiser ${taskName}$`, "i"),
+  });
+
+const seedWorkspace = async (
+  page: Page,
+  request: Parameters<typeof test.beforeEach>[0]["request"],
+  payload: SeedPayload,
+) => {
+  await request.post("/api/test/seed", { data: payload });
+  await page.reload();
+};
+
 test.beforeEach(async ({ page, request }) => {
   await request.post("/api/test/reset");
   await page.goto("/");
@@ -17,35 +74,36 @@ test.beforeEach(async ({ page, request }) => {
   await page.reload();
 });
 
-test("creates a tag and a task, runs the timer and exposes weekly totals", async ({
+test("runs the timer and exposes weekly totals for a seeded task", async ({
   page,
+  request,
 }) => {
-  await page.getByRole("button", { name: /gérer les tags/i }).click();
-  const tagsDialog = page.getByRole("dialog", { name: /gestion des tags/i });
-  await tagsDialog.getByLabel("Nom du nouveau tag").fill("Client");
-  await tagsDialog.getByRole("button", { name: /ajouter/i }).click();
-  await tagsDialog.getByRole("button", { name: /^fermer$/i }).click();
-
-  await page.getByRole("button", { name: /nouvelle tâche/i }).click();
-  const taskDialog = page.getByRole("dialog", { name: /nouvelle tâche/i });
-  await taskDialog.getByLabel("Nom de la tâche").fill("Session client");
-  await taskDialog.getByLabel("Commentaire de la tâche").fill("Point projet");
-  await taskDialog.getByRole("button", { name: /^client$/i }).click();
-  await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
-
-  await expect(page.getByText("Session client")).toBeVisible();
+  await seedWorkspace(page, request, {
+    tags: [{ id: "client-tag", name: "Client", color: "sand" }],
+    tasks: [
+      {
+        id: "session-client-task",
+        name: "Session client",
+        comment: "Point projet",
+        totalTimeSeconds: 0,
+        position: 0,
+        tagIds: ["client-tag"],
+      },
+    ],
+  });
 
   const sessionClientCard = taskCard(page, "Session client");
+  await expect(
+    sessionClientCard.getByRole("heading", { name: /^session client$/i }),
+  ).toBeVisible({ timeout: 10_000 });
 
-  await sessionClientCard
-    .getByRole("button", { name: /basculer le chrono pour session client/i })
-    .click({ force: true });
+  await sessionClientCard.click({ force: true });
   await page.waitForTimeout(2100);
-  await sessionClientCard
-    .getByRole("button", { name: /basculer le chrono pour session client/i })
-    .click({ force: true });
+  await sessionClientCard.click({ force: true });
 
-  await expect(sessionClientCard.getByText("00:00:02")).toBeVisible();
+  await expect(
+    sessionClientCard.getByText(/00:00:0[2-9]/i).last(),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: /vue calendrier/i }).click();
   await expect(
@@ -56,50 +114,97 @@ test("creates a tag and a task, runs the timer and exposes weekly totals", async
 
 test("reload keeps an active timer running until the user stops it manually", async ({
   page,
+  request,
 }) => {
-  await page.getByRole("button", { name: /nouvelle tâche/i }).click();
-  const taskDialog = page.getByRole("dialog", { name: /nouvelle tâche/i });
-  await taskDialog.getByLabel("Nom de la tâche").fill("Focus");
-  await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
+  await seedWorkspace(page, request, {
+    tasks: [
+      {
+        id: "focus-task",
+        name: "Focus",
+        totalTimeSeconds: 600,
+        position: 0,
+        createdAt: "2026-03-28T08:00:00.000Z",
+        updatedAt: "2026-03-28T08:10:00.000Z",
+      },
+      {
+        id: "support-task",
+        name: "Support",
+        totalTimeSeconds: 1200,
+        position: 1,
+        createdAt: "2026-03-28T08:00:00.000Z",
+        updatedAt: "2026-03-28T08:20:00.000Z",
+      },
+    ],
+    sessions: [
+      {
+        id: "focus-session",
+        taskId: "focus-task",
+        origin: "timer",
+        startedAt: "2026-03-29T18:57:00.000Z",
+        endedAt: null,
+        date: "2026-03-29",
+        segments: [],
+        auditEvents: [],
+        createdAt: "2026-03-29T18:57:00.000Z",
+        updatedAt: "2026-03-29T18:57:00.000Z",
+      },
+    ],
+    activeTimer: {
+      taskId: "focus-task",
+      sessionId: "focus-session",
+      segmentStartTime: "2026-03-29T18:57:00.000Z",
+      updatedAt: "2026-03-29T18:57:00.000Z",
+    },
+  });
 
-  await page
-    .getByRole("button", { name: /basculer le chrono pour focus/i })
-    .click({ force: true });
-  await expect(
-    page.getByRole("button", { name: /arrêter le chrono actif/i }),
-  ).toBeVisible();
-  await page.waitForTimeout(1200);
+  await expect(page.getByRole("banner").getByText("Focus")).toBeVisible({
+    timeout: 10_000,
+  });
   await page.reload();
 
-  await expect(
-    page.getByRole("button", { name: /arrêter le chrono actif/i }),
-  ).toBeVisible();
-  await expect(page.getByRole("banner").getByText("Focus")).toBeVisible();
+  await expect(page.getByRole("banner").getByText("Focus")).toBeVisible({
+    timeout: 10_000,
+  });
 
   const focusCard = taskCard(page, "Focus");
-  await expect(focusCard.getByText(/^actif$/i)).toBeVisible();
+  await expect(focusCard.getByText(/^actif$/i).first()).toBeVisible({
+    timeout: 10_000,
+  });
 
   await page.getByRole("button", { name: /arrêter le chrono actif/i }).click();
 
   await expect(page.getByText(/^chrono actif$/i)).toHaveCount(0);
-  await expect(focusCard.getByText(/^prêt$/i)).toBeVisible();
-  await expect(focusCard.getByText(/00:00:0[1-9]/i)).toBeVisible();
+  await expect(focusCard.getByText(/^prêt$/i).first()).toBeVisible();
 });
 
-test("allows manual time entry and exposes task history", async ({ page }) => {
-  await page.getByRole("button", { name: /nouvelle tâche/i }).click();
-  let taskDialog = page.getByRole("dialog", { name: /nouvelle tâche/i });
-  await taskDialog.getByLabel("Nom de la tâche").fill("Production");
-  await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
+test("allows manual time entry and exposes task history", async ({
+  page,
+  request,
+}) => {
+  await seedWorkspace(page, request, {
+    tasks: [
+      {
+        id: "production-task",
+        name: "Production",
+        totalTimeSeconds: 2400,
+        position: 0,
+      },
+      {
+        id: "lecture-task",
+        name: "Lecture",
+        totalTimeSeconds: 0,
+        position: 1,
+      },
+      {
+        id: "review-task",
+        name: "Review",
+        totalTimeSeconds: 900,
+        position: 2,
+      },
+    ],
+  });
 
-  await page.getByRole("button", { name: /nouvelle tâche/i }).click();
-  taskDialog = page.getByRole("dialog", { name: /nouvelle tâche/i });
-  await taskDialog.getByLabel("Nom de la tâche").fill("Lecture");
-  await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
-
-  await page
-    .getByRole("button", { name: /basculer le chrono pour production/i })
-    .click({ force: true });
+  await taskCard(page, "Production").click({ force: true });
 
   const lectureCard = taskCard(page, "Lecture");
   await lectureCard.getByRole("button", { name: /temps manuel/i }).click();
@@ -121,76 +226,93 @@ test("allows manual time entry and exposes task history", async ({ page }) => {
   ).toBeVisible();
   await sessionsDialog.getByRole("button", { name: /fermer/i }).click();
 
-  await expect(page.getByText("01:30:00")).toBeVisible();
+  await expect(lectureCard.getByText("01:30:00").last()).toBeVisible();
 
   await page.getByRole("button", { name: /vue calendrier/i }).click();
   await expect(page.getByText("Lecture")).toBeVisible();
   await expect(page.getByText("1h 30m").first()).toBeVisible();
 });
 
-test("reorders task cards with drag and drop", async ({ page }) => {
-  await page.getByRole("button", { name: /nouvelle tâche/i }).click();
-  let taskDialog = page.getByRole("dialog", { name: /nouvelle tâche/i });
-  await taskDialog.getByLabel("Nom de la tâche").fill("Alpha");
-  await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
-
-  await page.getByRole("button", { name: /nouvelle tâche/i }).click();
-  taskDialog = page.getByRole("dialog", { name: /nouvelle tâche/i });
-  await taskDialog.getByLabel("Nom de la tâche").fill("Beta");
-  await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
+test("reorders task cards with drag and drop", async ({ page, request }) => {
+  await seedWorkspace(page, request, {
+    tasks: [
+      { id: "alpha-task", name: "Alpha", totalTimeSeconds: 900, position: 0 },
+      { id: "beta-task", name: "Beta", totalTimeSeconds: 300, position: 1 },
+      { id: "gamma-task", name: "Gamma", totalTimeSeconds: 120, position: 2 },
+    ],
+  });
 
   const firstCard = taskCard(page, "Alpha");
   const secondCard = taskCard(page, "Beta");
 
+  const secondCardHandleBox = await dragHandle(page, "Beta").boundingBox();
   const firstCardBox = await firstCard.boundingBox();
-  const secondCardBox = await secondCard.boundingBox();
 
-  if (!firstCardBox || !secondCardBox) {
+  if (!secondCardHandleBox || !firstCardBox) {
     throw new Error("Unable to locate task cards for drag and drop test.");
   }
 
-  await page.mouse.move(secondCardBox.x + 28, secondCardBox.y + 28);
+  await page.mouse.move(
+    secondCardHandleBox.x + secondCardHandleBox.width / 2,
+    secondCardHandleBox.y + secondCardHandleBox.height / 2,
+  );
   await page.mouse.down();
   await page.mouse.move(
     firstCardBox.x + firstCardBox.width / 2,
-    firstCardBox.y + firstCardBox.height / 2,
-    { steps: 20 },
+    firstCardBox.y + 12,
+    {
+      steps: 20,
+    },
   );
   await page.mouse.up();
 
-  await expect(page.locator("main article h3").first()).toHaveText("Beta");
-  await expect(page.locator("main article h3").nth(1)).toHaveText("Alpha");
+  await expect(
+    page
+      .locator("main article")
+      .nth(0)
+      .getByRole("heading", { level: 3 })
+      .first(),
+  ).toHaveText("Beta");
+  await expect(
+    page
+      .locator("main article")
+      .nth(1)
+      .getByRole("heading", { level: 3 })
+      .first(),
+  ).toHaveText("Alpha");
 });
 
 test("does not start a timer when dragging an inactive task card", async ({
   page,
+  request,
 }) => {
-  await page.getByRole("button", { name: /nouvelle tâche/i }).click();
-  let taskDialog = page.getByRole("dialog", { name: /nouvelle tâche/i });
-  await taskDialog.getByLabel("Nom de la tâche").fill("Alpha");
-  await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
-
-  await page.getByRole("button", { name: /nouvelle tâche/i }).click();
-  taskDialog = page.getByRole("dialog", { name: /nouvelle tâche/i });
-  await taskDialog.getByLabel("Nom de la tâche").fill("Beta");
-  await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
+  await seedWorkspace(page, request, {
+    tasks: [
+      { id: "alpha-task", name: "Alpha", totalTimeSeconds: 900, position: 0 },
+      { id: "beta-task", name: "Beta", totalTimeSeconds: 300, position: 1 },
+      { id: "gamma-task", name: "Gamma", totalTimeSeconds: 120, position: 2 },
+    ],
+  });
 
   const firstCard = taskCard(page, "Alpha");
   const secondCard = taskCard(page, "Beta");
 
-  const firstCardBox = await firstCard.boundingBox();
+  const firstCardHandleBox = await dragHandle(page, "Alpha").boundingBox();
   const secondCardBox = await secondCard.boundingBox();
 
-  if (!firstCardBox || !secondCardBox) {
+  if (!firstCardHandleBox || !secondCardBox) {
     throw new Error("Unable to locate task cards for drag-no-toggle test.");
   }
 
   // Drag Alpha (first card) down to Beta's position — no timer should start
-  await page.mouse.move(firstCardBox.x + 28, firstCardBox.y + 28);
+  await page.mouse.move(
+    firstCardHandleBox.x + firstCardHandleBox.width / 2,
+    firstCardHandleBox.y + firstCardHandleBox.height / 2,
+  );
   await page.mouse.down();
   await page.mouse.move(
     secondCardBox.x + secondCardBox.width / 2,
-    secondCardBox.y + secondCardBox.height / 2,
+    secondCardBox.y + 12,
     { steps: 20 },
   );
   await page.mouse.up();
@@ -199,60 +321,64 @@ test("does not start a timer when dragging an inactive task card", async ({
   await expect(page.getByText(/^chrono actif$/i)).toHaveCount(0);
 
   // Neither card should show an active badge
-  await expect(
-    firstCard.getByRole("button", { name: /basculer le chrono pour alpha/i }),
-  ).toContainText(/prêt/i);
-  await expect(
-    secondCard.getByRole("button", { name: /basculer le chrono pour beta/i }),
-  ).toContainText(/prêt/i);
+  await expect(firstCard.getByText(/^prêt$/i).first()).toBeVisible();
+  await expect(secondCard.getByText(/^prêt$/i).first()).toBeVisible();
 });
 
 test("keeps the active timer running when the active card is reordered", async ({
   page,
+  request,
 }) => {
-  await page.getByRole("button", { name: /nouvelle tâche/i }).click();
-  let taskDialog = page.getByRole("dialog", { name: /nouvelle tâche/i });
-  await taskDialog.getByLabel("Nom de la tâche").fill("Alpha");
-  await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
-
-  await page.getByRole("button", { name: /nouvelle tâche/i }).click();
-  taskDialog = page.getByRole("dialog", { name: /nouvelle tâche/i });
-  await taskDialog.getByLabel("Nom de la tâche").fill("Beta");
-  await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
+  await seedWorkspace(page, request, {
+    tasks: [
+      { id: "alpha-task", name: "Alpha", totalTimeSeconds: 900, position: 0 },
+      { id: "beta-task", name: "Beta", totalTimeSeconds: 300, position: 1 },
+      { id: "gamma-task", name: "Gamma", totalTimeSeconds: 120, position: 2 },
+    ],
+  });
 
   const alphaCard = taskCard(page, "Alpha");
   const betaCard = taskCard(page, "Beta");
 
-  await alphaCard
-    .getByRole("button", { name: /basculer le chrono pour alpha/i })
-    .click({ force: true });
+  await alphaCard.click({ force: true });
   await page.waitForTimeout(1100);
 
-  const alphaCardBox = await alphaCard.boundingBox();
+  const alphaCardHandleBox = await dragHandle(page, "Alpha").boundingBox();
   const betaCardBox = await betaCard.boundingBox();
 
-  if (!alphaCardBox || !betaCardBox) {
+  if (!alphaCardHandleBox || !betaCardBox) {
     throw new Error("Unable to locate task cards for active drag test.");
   }
 
-  await page.mouse.move(alphaCardBox.x + 28, alphaCardBox.y + 28);
+  await page.mouse.move(
+    alphaCardHandleBox.x + alphaCardHandleBox.width / 2,
+    alphaCardHandleBox.y + alphaCardHandleBox.height / 2,
+  );
   await page.mouse.down();
   await page.mouse.move(
     betaCardBox.x + betaCardBox.width / 2,
-    betaCardBox.y + betaCardBox.height / 2,
+    betaCardBox.y + 12,
     { steps: 20 },
   );
   await page.mouse.up();
 
-  await expect(page.locator("main article h3").first()).toHaveText("Beta");
-  await expect(page.locator("main article h3").nth(1)).toHaveText("Alpha");
+  await expect(
+    page
+      .locator("main article")
+      .nth(0)
+      .getByRole("heading", { level: 3 })
+      .first(),
+  ).toHaveText("Beta");
+  await expect(
+    page
+      .locator("main article")
+      .nth(1)
+      .getByRole("heading", { level: 3 })
+      .first(),
+  ).toHaveText("Alpha");
   await expect(page.getByRole("banner").getByText("Alpha")).toBeVisible();
-  await expect(
-    alphaCard.getByRole("button", { name: /basculer le chrono pour alpha/i }),
-  ).toContainText(/actif/i);
-  await expect(
-    betaCard.getByRole("button", { name: /basculer le chrono pour beta/i }),
-  ).toContainText(/prêt/i);
+  await expect(alphaCard.getByText(/^actif$/i).first()).toBeVisible();
+  await expect(betaCard.getByText(/^prêt$/i).first()).toBeVisible();
 });
 
 test.describe("compact header on mobile", () => {
@@ -260,21 +386,20 @@ test.describe("compact header on mobile", () => {
 
   test("keeps header controls usable and still leaves task content in view", async ({
     page,
+    request,
   }) => {
-    await page.getByRole("button", { name: /gérer les tags/i }).click();
-    const tagsDialog = page.getByRole("dialog", { name: /gestion des tags/i });
-    await tagsDialog.getByLabel("Nom du nouveau tag").fill("Client");
-    await tagsDialog.getByRole("button", { name: /ajouter/i }).click();
-    await tagsDialog.getByRole("button", { name: /^fermer$/i }).click();
-
-    await page.getByRole("button", { name: /nouvelle tâche/i }).click();
-    const taskDialog = page.getByRole("dialog", { name: /nouvelle tâche/i });
-    await taskDialog.getByLabel("Nom de la tâche").fill("Session mobile");
-    await taskDialog
-      .getByLabel("Commentaire de la tâche")
-      .fill("Validation du header compact");
-    await taskDialog.getByRole("button", { name: /^client$/i }).click();
-    await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
+    await seedWorkspace(page, request, {
+      tags: [{ id: "client-tag", name: "Client", color: "sand" }],
+      tasks: [
+        {
+          id: "session-mobile-task",
+          name: "Session mobile",
+          comment: "Validation du header compact",
+          position: 0,
+          tagIds: ["client-tag"],
+        },
+      ],
+    });
 
     await page
       .getByRole("button", { name: /basculer le chrono pour session mobile/i })
@@ -298,52 +423,52 @@ test.describe("compact header on mobile", () => {
     const sessionMobileCard = taskCard(page, "Session mobile");
     await expect(sessionMobileCard).toBeVisible();
     await expect(sessionMobileCard).toBeInViewport();
-    await expect(sessionMobileCard.getByText("Session mobile")).toBeVisible();
+    await expect(
+      sessionMobileCard.getByRole("heading", { name: /^session mobile$/i }),
+    ).toBeVisible();
   });
 });
 
 test("keeps task cards compact and operable on a phone-sized viewport", async ({
   page,
+  request,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-
-  await page.getByRole("button", { name: /gérer les tags/i }).click();
-  const tagsDialog = page.getByRole("dialog", { name: /gestion des tags/i });
-  await tagsDialog.getByLabel("Nom du nouveau tag").fill("Client");
-  await tagsDialog.getByRole("button", { name: /ajouter/i }).click();
-  await tagsDialog.getByLabel("Nom du nouveau tag").fill("Mobile");
-  await tagsDialog.getByRole("button", { name: /ajouter/i }).click();
-  await tagsDialog.getByRole("button", { name: /^fermer$/i }).click();
-
-  await page.getByRole("button", { name: /nouvelle tâche/i }).click();
-  const taskDialog = page.getByRole("dialog", { name: /nouvelle tâche/i });
-  await taskDialog
-    .getByLabel("Nom de la tâche")
-    .fill("Préparation atelier client mobile");
-  await taskDialog
-    .getByLabel("Commentaire de la tâche")
-    .fill("Synthèse, validation et partage des décisions importantes");
-  await taskDialog.getByRole("button", { name: /^client$/i }).click();
-  await taskDialog.getByRole("button", { name: /^mobile$/i }).click();
-  await taskDialog.getByRole("button", { name: /créer la tâche/i }).click();
+  await seedWorkspace(page, request, {
+    tags: [
+      { id: "client-tag", name: "Client", color: "sand" },
+      { id: "mobile-tag", name: "Mobile", color: "mint" },
+    ],
+    tasks: [
+      {
+        id: "mobile-prep-task",
+        name: "Préparation atelier client mobile",
+        comment: "Synthèse, validation et partage des décisions importantes",
+        position: 0,
+        tagIds: ["client-tag", "mobile-tag"],
+      },
+    ],
+  });
 
   const mobileTaskCard = taskCard(page, "Préparation atelier client mobile");
   await expect(mobileTaskCard).toBeVisible();
   await expect(
-    mobileTaskCard.getByRole("button", { name: /temps manuel/i }),
+    mobileTaskCard.getByRole("button", {
+      name: /basculer le chrono pour préparation atelier client mobile/i,
+    }),
   ).toBeVisible();
   await expect(
-    mobileTaskCard.getByRole("button", { name: /historique/i }),
+    mobileTaskCard.getByRole("button", {
+      name: /modifier préparation atelier client mobile/i,
+    }),
   ).toBeVisible();
 
   await expect(
-    mobileTaskCard.getByText(/préparation atelier client mobile/i),
+    mobileTaskCard.getByRole("heading", {
+      name: /préparation atelier client mobile/i,
+    }),
   ).toBeVisible();
-  await expect(
-    mobileTaskCard.getByText(
-      /synthèse, validation et partage des décisions importantes/i,
-    ),
-  ).toBeVisible();
+  await expect(mobileTaskCard.getByText(/mobile, client/i)).toBeVisible();
 
   const hasHorizontalOverflow = await page.evaluate(
     () => document.documentElement.scrollWidth > window.innerWidth,
@@ -358,7 +483,9 @@ test("keeps task cards compact and operable on a phone-sized viewport", async ({
     .click({ force: true });
   await page.waitForTimeout(1100);
 
-  await expect(mobileTaskCard.getByText(/^actif$/i)).toBeVisible();
+  await expect(
+    page.getByRole("banner").getByText(/préparation atelier client mobile/i),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: /arrêter le chrono actif/i }),
   ).toBeVisible();

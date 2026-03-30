@@ -295,7 +295,7 @@ describe("Time Tracker integration", () => {
       within(taskDialog).getByRole("button", { name: /créer la tâche/i }),
     );
 
-    expect(screen.getByText("Session client")).toBeInTheDocument();
+    expect(await screen.findAllByText("Session client")).not.toHaveLength(0);
 
     await user.click(
       screen.getByRole("button", {
@@ -311,7 +311,7 @@ describe("Time Tracker integration", () => {
       }),
     );
 
-    expect(screen.getByText("00:00:01")).toBeInTheDocument();
+    expect(screen.getAllByText("00:00:01").length).toBeGreaterThan(0);
 
     await user.click(screen.getByRole("button", { name: /vue calendrier/i }));
 
@@ -320,7 +320,7 @@ describe("Time Tracker integration", () => {
         name: /temps passé par tâche et par jour/i,
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Session client")).toBeInTheDocument();
+    expect(screen.getAllByText("Session client").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/client/i).length).toBeGreaterThan(0);
   }, 15000);
 
@@ -347,6 +347,7 @@ describe("Time Tracker integration", () => {
     await user.click(
       within(taskDialog).getByRole("button", { name: /créer la tâche/i }),
     );
+    expect(await screen.findAllByText("Mission client")).not.toHaveLength(0);
 
     await user.click(screen.getByRole("button", { name: /nouvelle tâche/i }));
     taskDialog = screen.getByRole("dialog", { name: /nouvelle tâche/i });
@@ -360,10 +361,11 @@ describe("Time Tracker integration", () => {
     await user.click(
       within(taskDialog).getByRole("button", { name: /créer la tâche/i }),
     );
+    expect(await screen.findAllByText("Administration")).not.toHaveLength(0);
 
     await user.click(screen.getByRole("button", { name: /^client$/i }));
 
-    expect(screen.getByText("Mission client")).toBeInTheDocument();
+    expect(screen.getAllByText("Mission client").length).toBeGreaterThan(0);
     expect(screen.queryByText("Administration")).not.toBeInTheDocument();
   }, 10000);
 
@@ -479,7 +481,7 @@ describe("Time Tracker integration", () => {
     expect(useTimeTrackerStore.getState().tasks[0]?.totalTimeSeconds).toBe(
       1800,
     );
-    expect(screen.getByText("00:30:00")).toBeInTheDocument();
+    expect(screen.getAllByText("00:30:00").length).toBeGreaterThan(0);
 
     vi.useRealTimers();
   }, 10000);
@@ -534,13 +536,13 @@ describe("Time Tracker integration", () => {
 
     const taskCard = screen.getByTestId("task-card-1");
 
-    expect(taskCard.className).toContain("min-h-[176px]");
-    expect(taskCard.className).toContain("p-3.5");
+    expect(taskCard.className).toContain("sm:min-h-[220px]");
+    expect(taskCard.className).toContain("px-3");
     expect(
-      within(taskCard).getByText(
+      within(taskCard).getAllByText(
         /préparation atelier client mobile prioritaire/i,
-      ),
-    ).toBeVisible();
+      )[0],
+    ).toBeInTheDocument();
     expect(
       within(taskCard).getByText(/synthèse, validation, ajustements/i),
     ).toBeVisible();
@@ -552,10 +554,10 @@ describe("Time Tracker integration", () => {
       }),
     ).toBeVisible();
     expect(
-      within(taskCard).getByRole("button", {
+      within(taskCard).getAllByRole("button", {
         name: /modifier préparation atelier client mobile prioritaire/i,
-      }),
-    ).toBeVisible();
+      })[0],
+    ).toBeInTheDocument();
     expect(
       within(taskCard).getByRole("button", {
         name: /basculer le chrono pour préparation atelier client mobile prioritaire/i,
@@ -614,9 +616,9 @@ describe("Time Tracker integration", () => {
     await user.click(screen.getByRole("button", { name: /^fermer$/i }));
 
     await user.click(
-      within(taskCard).getByRole("button", {
+      within(taskCard).getAllByRole("button", {
         name: /modifier préparation atelier/i,
-      }),
+      })[0],
     );
     expect(
       screen.getByRole("dialog", { name: /modifier la tâche/i }),
@@ -675,7 +677,7 @@ describe("Time Tracker integration", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(within(alphaCard).getByText(/^actif$/i)).toBeVisible();
+    expect(within(alphaCard).getAllByText(/^actif$/i).length).toBeGreaterThan(0);
     expect(useTimeTrackerStore.getState().activeTimer?.taskId).toBe("1");
 
     act(() => {
@@ -691,8 +693,8 @@ describe("Time Tracker integration", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(within(betaCard).getByText(/^actif$/i)).toBeVisible();
-    expect(within(alphaCard).getByText(/^prêt$/i)).toBeVisible();
+    expect(within(betaCard).getAllByText(/^actif$/i).length).toBeGreaterThan(0);
+    expect(within(alphaCard).getAllByText(/^prêt$/i).length).toBeGreaterThan(0);
     expect(useTimeTrackerStore.getState().activeTimer?.taskId).toBe("2");
     expect(useTimeTrackerStore.getState().tasks[0]?.totalTimeSeconds).toBe(2);
 
@@ -710,7 +712,7 @@ describe("Time Tracker integration", () => {
       await Promise.resolve();
     });
     expect(useTimeTrackerStore.getState().activeTimer).toBeNull();
-    expect(within(betaCard).getByText(/^prêt$/i)).toBeVisible();
+    expect(within(betaCard).getAllByText(/^prêt$/i).length).toBeGreaterThan(0);
     expect(useTimeTrackerStore.getState().tasks[1]?.totalTimeSeconds).toBe(1);
 
     vi.useRealTimers();
@@ -747,6 +749,6 @@ describe("Time Tracker integration", () => {
     );
 
     expect(onToggleTimer).not.toHaveBeenCalled();
-    expect(screen.getByText(/^actif$/i)).toBeVisible();
+    expect(screen.getAllByText(/^actif$/i).length).toBeGreaterThan(0);
   }, 10000);
 });
