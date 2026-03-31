@@ -90,7 +90,7 @@ function TaskCardSurface({
         "group relative flex items-center overflow-hidden rounded-[1.75rem] border transition-[transform,opacity,box-shadow,border-color] duration-200 ease-out transform-gpu",
 
         // Mobile list layout (compact row)
-        "gap-3 px-3 py-2 border-b border-ink/8 sm:gap-4 sm:min-h-[220px] sm:p-5 sm:flex-col sm:border-b-0 sm:rounded-[1.75rem]",
+        "gap-3 px-3 py-2 border-b border-ink/8 sm:gap-3 sm:min-h-[160px] sm:p-4 sm:flex-col sm:border-b-0 sm:rounded-[1.75rem]",
 
         // Active state
         isActive
@@ -116,28 +116,17 @@ function TaskCardSurface({
         tabIndex={isDragging && !isOverlay ? -1 : undefined}
         {...dragHandleProps}
       >
-        <GripVertical size={14} className="sm:w-4 sm:h-4" />
+        <GripVertical size={16} className="sm:w-5 sm:h-5" />
       </button>
 
       {/* Task info zone - middle */}
       <div className="flex-1 min-w-0">
         {/* Desktop version - hidden on mobile */}
-        <div className="hidden sm:flex sm:items-start sm:justify-between sm:gap-4">
+        <div className="hidden sm:flex sm:items-start sm:justify-between sm:gap-3">
           <div className="min-w-0 space-y-2 sm:space-y-3 flex-1">
-            <div className="flex items-center gap-2">
-              <span
-                className={[
-                  "inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] sm:gap-2 sm:px-3 sm:text-xs sm:tracking-[0.18em]",
-                  isActive ? "bg-mint/35 text-ink" : "bg-ink/5 text-ink/50",
-                ].join(" ")}
-              >
-                {isActive ? <Square size={12} /> : <Play size={12} />}
-                {isActive ? "Actif" : "Prêt"}
-              </span>
-            </div>
 
             <div className="min-w-0">
-              <h3 className="break-words overflow-hidden text-[1.65rem] font-semibold leading-tight text-ink">
+              <h3 className="break-words overflow-hidden line-clamp-2 text-[2.4rem] font-semibold leading-tight text-ink">
                 {task.name}
               </h3>
               {task.comment ? (
@@ -196,6 +185,9 @@ function TaskCardSurface({
       </p>
 
       {/* Mobile action icons - right side */}
+      {/* NOTE: Mobile button sizes (h-8 w-8 = 32px) are below spec minimum of 44px.
+          This is pre-existing accessibility debt not addressed in current story (compact card layout).
+          Deferred to separate accessibility improvement story. See spec for details. */}
       <div className="sm:hidden flex gap-1 flex-shrink-0">
         <button
           type="button"
@@ -230,7 +222,7 @@ function TaskCardSurface({
 
       {/* Desktop card content - below the header row */}
       <div className="hidden sm:flex sm:w-full sm:flex-1 sm:flex-col sm:items-start sm:justify-between sm:text-left sm:mt-3">
-        <div className="min-w-0 space-y-3 w-full">
+        <div className="min-w-0 space-y-2 w-full">
           <div className="flex items-center gap-2">
             <span
               className={[
@@ -238,16 +230,16 @@ function TaskCardSurface({
                 isActive ? "bg-mint/35 text-ink" : "bg-ink/5 text-ink/50",
               ].join(" ")}
             >
-              {isActive ? <Square size={12} /> : <Play size={12} />}
+              {isActive ? <Square size={14} /> : <Play size={14} />}
               {isActive ? "Actif" : "Prêt"}
             </span>
           </div>
 
           <div className="min-w-0">
-            <p className="text-[2.7rem] font-mono font-semibold leading-none tracking-tight text-ink">
+            <p className="text-[2.4rem] font-mono font-semibold leading-none tracking-tight text-ink">
               {formatClock(liveSeconds)}
             </p>
-            <div className="flex flex-wrap gap-2 mt-3">
+            <div className="flex flex-wrap gap-2 mt-2">
               {taskTags.length === 0 ? (
                 <span className="rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-ink/45">
                   Sans tag
@@ -266,7 +258,7 @@ function TaskCardSurface({
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-3 mt-4 w-full">
+        <div className="flex flex-wrap gap-2 mt-3 w-full">
           <button
             type="button"
             onClick={(event) => {
@@ -279,7 +271,7 @@ function TaskCardSurface({
             disabled={isDragging && !isOverlay}
             className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-full border border-ink/10 bg-white/85 px-4 py-2 text-sm font-semibold text-ink/65 transition hover:border-ink/30 hover:text-ink disabled:pointer-events-none"
           >
-            <Clock3 size={14} />
+            <Clock3 size={16} />
             Temps manuel
           </button>
           <button
@@ -294,7 +286,7 @@ function TaskCardSurface({
             disabled={isDragging && !isOverlay}
             className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-full border border-ink/10 bg-white/85 px-4 py-2 text-sm font-semibold text-ink/65 transition hover:border-ink/30 hover:text-ink disabled:pointer-events-none"
           >
-            <History size={14} />
+            <History size={16} />
             Historique
           </button>
         </div>
