@@ -29,11 +29,8 @@ import {
   formatWeekRange,
   formatDayDisplay,
   shiftDay,
-  shiftWeek,
   startOfWeek,
-  getWeekStartFromDay,
   isSameDay,
-  isToday,
   toDateKey,
   todayKey,
 } from "./lib/time";
@@ -91,6 +88,8 @@ function AuthenticatedWorkspace() {
    */
   const handleMovePeriod = useCallback(
     (direction: -1 | 1) => {
+      if (!reportAnchor || !/^\d{4}-\d{2}-\d{2}$/.test(reportAnchor)) return;
+
       if (currentView === "grid") {
         // Grid view: shift by 1 day
         const newDay = shiftDay(reportAnchor, direction);
@@ -319,6 +318,10 @@ function AuthenticatedWorkspace() {
       return 0;
     }
 
+    if (!activeTimer.segmentStartTime) {
+      return 0;
+    }
+
     // Grid mode: show contribution only if viewing today
     if (currentView === "grid") {
       if (!isCurrentDay) {
@@ -497,8 +500,8 @@ function AuthenticatedWorkspace() {
           selectedTagIds={selectedTagIds}
           tags={tags}
           activeTimer={activeTimerSummary}
-          weeklyTotal={totalDisplay}
-          weekDateRange={displayText}
+          periodTotal={totalDisplay}
+          periodLabel={displayText}
           onToggleView={() =>
             setCurrentView(currentView === "grid" ? "week" : "grid")
           }

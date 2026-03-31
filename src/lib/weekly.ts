@@ -2,6 +2,24 @@ import type { Tag, Task, TaskSession, WeeklyTaskSummary } from "../types";
 import { calculateTaskSessionDuration } from "./taskModels";
 import { toDateKey, weekDays, isSameDay } from "./time";
 
+function filterVisibleTasks(
+  tasks: Task[],
+  selectedTagIds: string[],
+  tags: Tag[],
+): { visibleTasks: Task[]; taskMap: Map<string, Task> } {
+  const validTagIds = new Set(tags.map((tag) => tag.id));
+  const visibleTasks = tasks
+    .filter((task) => task.tagIds.every((tagId) => validTagIds.has(tagId)))
+    .filter((task) => {
+      if (selectedTagIds.length === 0) {
+        return true;
+      }
+      return selectedTagIds.every((tagId) => task.tagIds.includes(tagId));
+    });
+  const taskMap = new Map(visibleTasks.map((task) => [task.id, task]));
+  return { visibleTasks, taskMap };
+}
+
 export interface WeeklySummary {
   days: string[];
   tasks: WeeklyTaskSummary[];
@@ -18,18 +36,7 @@ export const summarizeWeek = (
 ): WeeklySummary => {
   const days = weekDays(anchorDate).map((date) => toDateKey(date));
   const daySet = new Set(days);
-  const validTagIds = new Set(tags.map((tag) => tag.id));
-  const visibleTasks = tasks
-    .filter((task) => task.tagIds.every((tagId) => validTagIds.has(tagId)))
-    .filter((task) => {
-      if (selectedTagIds.length === 0) {
-        return true;
-      }
-
-      return selectedTagIds.every((tagId) => task.tagIds.includes(tagId));
-    });
-
-  const taskMap = new Map(visibleTasks.map((task) => [task.id, task]));
+  const { visibleTasks, taskMap } = filterVisibleTasks(tasks, selectedTagIds, tags);
   const totalsByDay = Object.fromEntries(days.map((day) => [day, 0]));
   const taskSummaries = new Map<string, WeeklyTaskSummary>();
 
@@ -94,18 +101,7 @@ export const summarizeDay = (
   selectedTagIds: string[],
   tags: Tag[],
 ): DaySummary => {
-  const validTagIds = new Set(tags.map((tag) => tag.id));
-  const visibleTasks = tasks
-    .filter((task) => task.tagIds.every((tagId) => validTagIds.has(tagId)))
-    .filter((task) => {
-      if (selectedTagIds.length === 0) {
-        return true;
-      }
-
-      return selectedTagIds.every((tagId) => task.tagIds.includes(tagId));
-    });
-
-  const taskMap = new Map(visibleTasks.map((task) => [task.id, task]));
+  const { visibleTasks, taskMap } = filterVisibleTasks(tasks, selectedTagIds, tags);
   const taskSummaries = new Map<string, WeeklyTaskSummary>();
   let totalSeconds = 0;
 

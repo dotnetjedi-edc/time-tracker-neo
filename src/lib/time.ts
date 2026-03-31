@@ -57,8 +57,7 @@ const toLocalDate = (value: string | Date): Date => {
   const dateOnlyMatch = dateOnlyPattern.exec(value);
   if (dateOnlyMatch) {
     const [, year, month, day] = dateOnlyMatch;
-    // Use Date.UTC to ensure consistent UTC-based date handling across all timezones
-    return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+    return new Date(Number(year), Number(month) - 1, Number(day));
   }
 
   return new Date(value);
@@ -108,14 +107,6 @@ export const shiftDay = (anchor: string | Date, amount: number): string => {
 
 export const todayKey = (): string => toDateKey(new Date());
 
-/**
- * Get the Monday (start of week) for a given day.
- * Used when switching from grid (day) to calendar (week) view.
- */
-export const getWeekStartFromDay = (day: string | Date): string => {
-  return toDateKey(startOfWeek(day));
-};
-
 const weekRangeFormatter = new Intl.DateTimeFormat("fr-FR", {
   day: "numeric",
   month: "short",
@@ -145,14 +136,10 @@ export const formatDayDisplay = (day: string | Date): string => {
  * Check if two dates represent the same day
  */
 export const isSameDay = (day1: string | Date, day2: string | Date): boolean => {
+  if (typeof day1 === 'string' && typeof day2 === 'string' && dateOnlyPattern.test(day1) && dateOnlyPattern.test(day2)) {
+    return day1 === day2;
+  }
   return toDateKey(day1) === toDateKey(day2);
-};
-
-/**
- * Check if a date is today
- */
-export const isToday = (day: string | Date): boolean => {
-  return isSameDay(day, new Date());
 };
 
 export const toDateTimeLocalInputValue = (value: string): string => {

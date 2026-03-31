@@ -22,8 +22,8 @@ interface HeaderProps {
   selectedTagIds: string[];
   tags: Tag[];
   activeTimer: ActiveTimerSummary | null;
-  weeklyTotal: string;
-  weekDateRange: string;
+  periodTotal: string;
+  periodLabel: string;
   onToggleView: () => void;
   onOpenTags: () => void;
   onSelectTag: (tagId: string) => void;
@@ -37,8 +37,8 @@ export function Header({
   selectedTagIds,
   tags,
   activeTimer,
-  weeklyTotal,
-  weekDateRange,
+  periodTotal,
+  periodLabel,
   onToggleView,
   onOpenTags,
   onSelectTag,
@@ -107,10 +107,10 @@ export function Header({
                 {currentView === "grid" ? "Jour" : "Semaine"}
               </p>
               <p className="text-sm font-semibold text-ink">
-                {weekDateRange}
+                {periodLabel}
               </p>
               <p className="mt-0.5 font-mono text-lg font-semibold tracking-tight text-ink">
-                {weeklyTotal}
+                {periodTotal}
               </p>
             </div>
             <button
