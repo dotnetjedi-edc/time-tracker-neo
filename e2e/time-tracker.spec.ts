@@ -67,6 +67,61 @@ const seedWorkspace = async (
   await page.reload();
 };
 
+const clickButtonByName = async (page: Page, name: RegExp) => {
+  await page.getByRole("button", { name }).evaluate((button) => {
+    (button as HTMLButtonElement).click();
+  });
+};
+
+const toDateKey = (value: Date) => {
+  const year = value.getFullYear();
+  const month = `${value.getMonth() + 1}`.padStart(2, "0");
+  const day = `${value.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const startOfWeek = (value: Date) => {
+  const normalized = new Date(
+    value.getFullYear(),
+    value.getMonth(),
+    value.getDate(),
+  );
+  const day = normalized.getDay();
+  const delta = day === 0 ? -6 : 1 - day;
+  normalized.setDate(normalized.getDate() + delta);
+  return normalized;
+};
+
+const addDays = (value: Date, days: number) => {
+  const next = new Date(value);
+  next.setDate(next.getDate() + days);
+  return next;
+};
+
+const atLocalTime = (
+  value: Date,
+  hours: number,
+  minutes: number,
+  seconds = 0,
+) =>
+  new Date(
+    value.getFullYear(),
+    value.getMonth(),
+    value.getDate(),
+    hours,
+    minutes,
+    seconds,
+  );
+
+const toDateTimeLocalValue = (value: Date) => {
+  const year = value.getFullYear();
+  const month = `${value.getMonth() + 1}`.padStart(2, "0");
+  const day = `${value.getDate()}`.padStart(2, "0");
+  const hours = `${value.getHours()}`.padStart(2, "0");
+  const minutes = `${value.getMinutes()}`.padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 test.beforeEach(async ({ page, request }) => {
   await request.post("/api/test/reset");
   await page.goto("/");
@@ -110,6 +165,167 @@ test("runs the timer and exposes weekly totals for a seeded task", async ({
     page.getByRole("heading", { name: /temps passé par tâche et par jour/i }),
   ).toBeVisible();
   await expect(page.getByText("Session client")).toBeVisible();
+});
+
+test("navigates weeks and updates the weekly total in the header", async ({
+  page,
+  request,
+}) => {
+  const now = new Date();
+  const currentWeekStart = startOfWeek(now);
+  const previousWeekStart = addDays(currentWeekStart, -7);
+  const currentSessionStart = atLocalTime(addDays(currentWeekStart, 1), 9, 0);
+  const currentSessionEnd = atLocalTime(addDays(currentWeekStart, 1), 9, 30);
+  const previousSessionStart = atLocalTime(
+    addDays(previousWeekStart, 2),
+    14,
+    0,
+  );
+  const previousSessionEnd = atLocalTime(addDays(previousWeekStart, 2), 14, 45);
+  const activeTimerStart = new Date(now.getTime() - 125 * 1000);
+
+  await seedWorkspace(page, request, {
+    tasks: [
+      {
+        id: "focus-task",
+        name: "Focus",
+        totalTimeSeconds: 1800,
+        position: 0,
+        createdAt: currentSessionStart.toISOString(),
+        updatedAt: activeTimerStart.toISOString(),
+      },
+      {
+        id: "archive-task",
+        name: "Archive",
+        totalTimeSeconds: 2700,
+        position: 1,
+        createdAt: previousSessionStart.toISOString(),
+        updatedAt: previousSessionEnd.toISOString(),
+      },
+    ],
+    sessions: [
+      {
+        id: "current-session",
+        taskId: "focus-task",
+        origin: "manual",
+        startedAt: currentSessionStart.toISOString(),
+        endedAt: currentSessionEnd.toISOString(),
+        date: toDateKey(currentSessionStart),
+        segments: [
+          {
+            id: 1,
+            startTime: currentSessionStart.toISOString(),
+            endTime: currentSessionEnd.toISOString(),
+            durationSeconds: 1800,
+          },
+        ],
+        auditEvents: [
+          {
+            id: 1,
+            type: "manual-added",
+            at: currentSessionEnd.toISOString(),
+            description: "Ajout manuel de temps.",
+          },
+        ],
+        createdAt: currentSessionEnd.toISOString(),
+        updatedAt: currentSessionEnd.toISOString(),
+      },
+      {
+        id: "previous-session",
+        taskId: "archive-task",
+        origin: "manual",
+        startedAt: previousSessionStart.toISOString(),
+        endedAt: previousSessionEnd.toISOString(),
+        date: toDateKey(previousSessionStart),
+        segments: [
+          {
+            id: 2,
+            startTime: previousSessionStart.toISOString(),
+            endTime: previousSessionEnd.toISOString(),
+            durationSeconds: 2700,
+          },
+        ],
+        auditEvents: [
+          {
+            id: 2,
+            type: "manual-added",
+            at: previousSessionEnd.toISOString(),
+            description: "Ajout manuel de temps.",
+          },
+        ],
+        createdAt: previousSessionEnd.toISOString(),
+        updatedAt: previousSessionEnd.toISOString(),
+      },
+      {
+        id: "active-session",
+        taskId: "focus-task",
+        origin: "timer",
+        startedAt: activeTimerStart.toISOString(),
+        endedAt: null,
+        date: toDateKey(activeTimerStart),
+        segments: [],
+        auditEvents: [
+          {
+            id: 3,
+            type: "started",
+            at: activeTimerStart.toISOString(),
+            description: "Chrono démarré.",
+          },
+        ],
+        createdAt: activeTimerStart.toISOString(),
+        updatedAt: activeTimerStart.toISOString(),
+      },
+    ],
+    activeTimer: {
+      taskId: "focus-task",
+      sessionId: "active-session",
+      segmentStartTime: activeTimerStart.toISOString(),
+      updatedAt: activeTimerStart.toISOString(),
+    },
+  });
+
+  const banner = page.getByRole("banner");
+  const weekRange = banner.getByText(/\d{1,2} .* – \d{1,2} .*/).first();
+  const initialWeekRange = (await weekRange.textContent()) ?? "";
+  const startsOnCurrentWeek =
+    (await banner.getByText("32m", { exact: true }).count()) > 0;
+
+  await expect(banner.getByText("Focus", { exact: true })).toBeVisible();
+  await expect(banner.getByText(/00:02:[0-5]\d/)).toBeVisible();
+  await page.getByRole("button", { name: /vue calendrier/i }).click();
+  await expect(
+    page.getByRole("heading", { name: /temps passé par tâche et par jour/i }),
+  ).toBeVisible();
+
+  if (startsOnCurrentWeek) {
+    await expect(banner.getByText("32m", { exact: true })).toBeVisible();
+
+    await clickButtonByName(page, /^← Semaine précédente$/i);
+
+    await expect(banner.getByText("45m", { exact: true })).toBeVisible();
+    await expect(weekRange).not.toHaveText(initialWeekRange);
+    await expect(banner.getByText("Focus", { exact: true })).toBeVisible();
+    await expect(banner.getByText(/00:02:[0-5]\d/)).toBeVisible();
+
+    await clickButtonByName(page, /^Semaine suivante →$/i);
+
+    await expect(weekRange).toHaveText(initialWeekRange);
+    await expect(banner.getByText("32m", { exact: true })).toBeVisible();
+  } else {
+    await expect(banner.getByText("45m", { exact: true })).toBeVisible();
+
+    await clickButtonByName(page, /^Semaine suivante →$/i);
+
+    await expect(banner.getByText("32m", { exact: true })).toBeVisible();
+    await expect(weekRange).not.toHaveText(initialWeekRange);
+    await expect(banner.getByText("Focus", { exact: true })).toBeVisible();
+    await expect(banner.getByText(/00:02:[0-5]\d/)).toBeVisible();
+
+    await clickButtonByName(page, /^← Semaine précédente$/i);
+
+    await expect(weekRange).toHaveText(initialWeekRange);
+    await expect(banner.getByText("45m", { exact: true })).toBeVisible();
+  }
 });
 
 test("reload keeps an active timer running until the user stops it manually", async ({
@@ -181,6 +397,10 @@ test("allows manual time entry and exposes task history", async ({
   page,
   request,
 }) => {
+  const manualSessionDay = addDays(startOfWeek(new Date()), 1);
+  const manualSessionStart = atLocalTime(manualSessionDay, 9, 0);
+  const manualSessionEnd = atLocalTime(manualSessionDay, 10, 30);
+
   await seedWorkspace(page, request, {
     tasks: [
       {
@@ -212,8 +432,12 @@ test("allows manual time entry and exposes task history", async ({
   const sessionsDialog = page.getByRole("dialog", {
     name: /temps et historique pour lecture/i,
   });
-  await sessionsDialog.getByLabel("Début de session").fill("2026-03-28T09:00");
-  await sessionsDialog.getByLabel("Fin de session").fill("2026-03-28T10:30");
+  await sessionsDialog
+    .getByLabel("Début de session")
+    .fill(toDateTimeLocalValue(manualSessionStart));
+  await sessionsDialog
+    .getByLabel("Fin de session")
+    .fill(toDateTimeLocalValue(manualSessionEnd));
   await sessionsDialog
     .getByRole("button", { name: /ajouter la session/i })
     .click();
