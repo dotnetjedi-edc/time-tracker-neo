@@ -57,7 +57,8 @@ const toLocalDate = (value: string | Date): Date => {
   const dateOnlyMatch = dateOnlyPattern.exec(value);
   if (dateOnlyMatch) {
     const [, year, month, day] = dateOnlyMatch;
-    return new Date(Number(year), Number(month) - 1, Number(day));
+    // Use Date.UTC to ensure consistent UTC-based date handling across all timezones
+    return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
   }
 
   return new Date(value);
@@ -99,11 +100,30 @@ export const shiftWeek = (anchor: string | Date, amount: number): string => {
   return toDateKey(addDays(startOfWeek(anchor), amount * 7));
 };
 
+export const shiftDay = (anchor: string | Date, amount: number): string => {
+  const date = toLocalDate(anchor);
+  const shifted = addDays(date, amount);
+  return toDateKey(shifted);
+};
+
 export const todayKey = (): string => toDateKey(new Date());
+
+/**
+ * Get the Monday (start of week) for a given day.
+ * Used when switching from grid (day) to calendar (week) view.
+ */
+export const getWeekStartFromDay = (day: string | Date): string => {
+  return toDateKey(startOfWeek(day));
+};
 
 const weekRangeFormatter = new Intl.DateTimeFormat("fr-FR", {
   day: "numeric",
   month: "short",
+});
+
+const dayFormatter = new Intl.DateTimeFormat("fr-FR", {
+  day: "numeric",
+  month: "long",
 });
 
 export const formatWeekRange = (anchor: string): string => {
@@ -111,6 +131,28 @@ export const formatWeekRange = (anchor: string): string => {
   const monday = days[0];
   const sunday = days[6];
   return `${weekRangeFormatter.format(monday)} \u2013 ${weekRangeFormatter.format(sunday)}`;
+};
+
+/**
+ * Format a single day for display (e.g., "31 mars")
+ */
+export const formatDayDisplay = (day: string | Date): string => {
+  const date = toLocalDate(day);
+  return dayFormatter.format(date);
+};
+
+/**
+ * Check if two dates represent the same day
+ */
+export const isSameDay = (day1: string | Date, day2: string | Date): boolean => {
+  return toDateKey(day1) === toDateKey(day2);
+};
+
+/**
+ * Check if a date is today
+ */
+export const isToday = (day: string | Date): boolean => {
+  return isSameDay(day, new Date());
 };
 
 export const toDateTimeLocalInputValue = (value: string): string => {

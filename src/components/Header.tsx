@@ -95,14 +95,16 @@ export function Header({
             <button
               type="button"
               onClick={() => onMoveWeek(-1)}
-              aria-label="Semaine précédente"
+              aria-label={
+                currentView === "grid" ? "Jour précédent" : "Semaine précédente"
+              }
               className="rounded-full border border-ink/10 bg-white p-2 text-ink transition hover:border-ink/30"
             >
               <ChevronLeft size={16} />
             </button>
             <div className="text-center">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink/45">
-                Semaine
+                {currentView === "grid" ? "Jour" : "Semaine"}
               </p>
               <p className="text-sm font-semibold text-ink">
                 {weekDateRange}
@@ -114,7 +116,9 @@ export function Header({
             <button
               type="button"
               onClick={() => onMoveWeek(1)}
-              aria-label="Semaine suivante"
+              aria-label={
+                currentView === "grid" ? "Jour suivant" : "Semaine suivante"
+              }
               className="rounded-full border border-ink/10 bg-white p-2 text-ink transition hover:border-ink/30"
             >
               <ChevronRight size={16} />

@@ -27,11 +27,17 @@ import {
   formatDateTime,
   formatHoursMinutes,
   formatWeekRange,
+  formatDayDisplay,
+  shiftDay,
+  shiftWeek,
   startOfWeek,
+  getWeekStartFromDay,
+  isSameDay,
+  isToday,
   toDateKey,
   todayKey,
 } from "./lib/time";
-import { summarizeWeek } from "./lib/weekly";
+import { summarizeWeek, summarizeDay } from "./lib/weekly";
 import { useTimeTrackerStore } from "./store/useTimeTrackerStore";
 import { useNavigationStack } from "./hooks/useNavigationStack";
 
@@ -79,6 +85,23 @@ function AuthenticatedWorkspace() {
   );
   const setCurrentView = useTimeTrackerStore((state) => state.setCurrentView);
   const moveReportWeek = useTimeTrackerStore((state) => state.moveReportWeek);
+
+  /**
+   * Handle period navigation (day/week) based on current view mode
+   */
+  const handleMovePeriod = useCallback(
+    (direction: -1 | 1) => {
+      if (currentView === "grid") {
+        // Grid view: shift by 1 day
+        const newDay = shiftDay(reportAnchor, direction);
+        useTimeTrackerStore.setState({ reportAnchor: newDay });
+      } else {
+        // Week view: shift by 1 week
+        moveReportWeek(direction);
+      }
+    },
+    [currentView, reportAnchor, moveReportWeek],
+  );
   const resetFilters = useTimeTrackerStore((state) => state.resetFilters);
   const initialize = useTimeTrackerStore((state) => state.initialize);
   const reloadWorkspace = useTimeTrackerStore((state) => state.reloadWorkspace);
@@ -264,6 +287,8 @@ function AuthenticatedWorkspace() {
     };
   }, [activeTask, activeTimer, activeTimerSession, now]);
 
+  const isCurrentDay = isSameDay(reportAnchor, todayKey());
+  
   const isCurrentWeek =
     toDateKey(startOfWeek(reportAnchor)) === toDateKey(startOfWeek(todayKey()));
 
@@ -284,8 +309,39 @@ function AuthenticatedWorkspace() {
     return selectedTagIds.every((tagId) => activeTask.tagIds.includes(tagId));
   }, [activeTask, selectedTagIds, tags]);
 
-  const activeTimerWeekContributionSeconds = useMemo(() => {
-    if (!isCurrentWeek || !activeTimer || !activeTaskMatchesSummaryFilters) {
+  /**
+   * Calculate active timer contribution based on current view mode.
+   * For grid view: contribution is from midnight to now, but only if today is selected.
+   * For week view: contribution is from week start to now, but only if current week is selected.
+   */
+  const activeTimerContributionSeconds = useMemo(() => {
+    if (!activeTimer || !activeTaskMatchesSummaryFilters) {
+      return 0;
+    }
+
+    // Grid mode: show contribution only if viewing today
+    if (currentView === "grid") {
+      if (!isCurrentDay) {
+        return 0;
+      }
+
+      const dayStart = new Date(reportAnchor + "T00:00:00Z");
+      const dayEnd = new Date(reportAnchor + "T23:59:59Z");
+      const overlapStart = Math.max(
+        new Date(activeTimer.segmentStartTime).getTime(),
+        dayStart.getTime(),
+      );
+      const overlapEnd = Math.min(now, dayEnd.getTime());
+
+      if (overlapEnd <= overlapStart) {
+        return 0;
+      }
+
+      return Math.floor((overlapEnd - overlapStart) / 1000);
+    }
+
+    // Week mode: show contribution only if viewing current week
+    if (!isCurrentWeek) {
       return 0;
     }
 
@@ -305,12 +361,35 @@ function AuthenticatedWorkspace() {
   }, [
     activeTaskMatchesSummaryFilters,
     activeTimer,
+    currentView,
+    isCurrentDay,
     isCurrentWeek,
     now,
     reportAnchor,
   ]);
 
-  const weeklyTotalSeconds = useMemo(() => {
+  /**
+   * Calculate total seconds and display text based on current view mode.
+   * Grid view: summarize day, display day name
+   * Week view: summarize week, display week range
+   */
+  const { totalSeconds: totalSecondsForDisplay, displayText } = useMemo(() => {
+    if (currentView === "grid") {
+      const summary = summarizeDay(
+        tasks,
+        sessions,
+        reportAnchor,
+        selectedTagIds,
+        tags,
+      );
+
+      return {
+        totalSeconds: summary.totalSeconds + activeTimerContributionSeconds,
+        displayText: formatDayDisplay(reportAnchor),
+      };
+    }
+
+    // Week view
     const summary = summarizeWeek(
       tasks,
       sessions,
@@ -319,9 +398,13 @@ function AuthenticatedWorkspace() {
       tags,
     );
 
-    return summary.totalSeconds + activeTimerWeekContributionSeconds;
+    return {
+      totalSeconds: summary.totalSeconds + activeTimerContributionSeconds,
+      displayText: formatWeekRange(reportAnchor),
+    };
   }, [
-    activeTimerWeekContributionSeconds,
+    activeTimerContributionSeconds,
+    currentView,
     reportAnchor,
     selectedTagIds,
     sessions,
@@ -329,8 +412,7 @@ function AuthenticatedWorkspace() {
     tasks,
   ]);
 
-  const weeklyTotal = formatHoursMinutes(weeklyTotalSeconds);
-  const weekDateRange = formatWeekRange(reportAnchor);
+  const totalDisplay = formatHoursMinutes(totalSecondsForDisplay);
 
   const handleSaveTask = (draft: TaskDraft) => {
     if (editingTask) {
@@ -415,8 +497,8 @@ function AuthenticatedWorkspace() {
           selectedTagIds={selectedTagIds}
           tags={tags}
           activeTimer={activeTimerSummary}
-          weeklyTotal={weeklyTotal}
-          weekDateRange={weekDateRange}
+          weeklyTotal={totalDisplay}
+          weekDateRange={displayText}
           onToggleView={() =>
             setCurrentView(currentView === "grid" ? "week" : "grid")
           }
@@ -431,7 +513,7 @@ function AuthenticatedWorkspace() {
           onSelectTag={toggleSelectedTag}
           onResetFilters={resetFilters}
           onStopActiveTimer={() => void stopTimer(new Date().toISOString())}
-          onMoveWeek={moveReportWeek}
+          onMoveWeek={handleMovePeriod}
         />
 
         <main className="space-y-6">
