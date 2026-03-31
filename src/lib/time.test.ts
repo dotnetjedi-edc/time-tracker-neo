@@ -101,6 +101,10 @@ describe("time helpers", () => {
     expect(range).toContain("mars");
   });
 
+  it("toDateKey returns the same date string regardless of timezone", () => {
+    expect(toDateKey("2026-03-20")).toBe("2026-03-20");
+  });
+
   it("excludes sessions from other weeks when anchor shifts", () => {
     const tasks = [
       {

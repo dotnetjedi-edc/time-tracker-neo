@@ -99,6 +99,12 @@ export const shiftWeek = (anchor: string | Date, amount: number): string => {
   return toDateKey(addDays(startOfWeek(anchor), amount * 7));
 };
 
+export const shiftDay = (anchor: string | Date, amount: number): string => {
+  const date = toLocalDate(anchor);
+  const shifted = addDays(date, amount);
+  return toDateKey(shifted);
+};
+
 export const todayKey = (): string => toDateKey(new Date());
 
 const weekRangeFormatter = new Intl.DateTimeFormat("fr-FR", {
@@ -106,11 +112,34 @@ const weekRangeFormatter = new Intl.DateTimeFormat("fr-FR", {
   month: "short",
 });
 
+const dayFormatter = new Intl.DateTimeFormat("fr-FR", {
+  day: "numeric",
+  month: "long",
+});
+
 export const formatWeekRange = (anchor: string): string => {
   const days = weekDays(anchor);
   const monday = days[0];
   const sunday = days[6];
   return `${weekRangeFormatter.format(monday)} \u2013 ${weekRangeFormatter.format(sunday)}`;
+};
+
+/**
+ * Format a single day for display (e.g., "31 mars")
+ */
+export const formatDayDisplay = (day: string | Date): string => {
+  const date = toLocalDate(day);
+  return dayFormatter.format(date);
+};
+
+/**
+ * Check if two dates represent the same day
+ */
+export const isSameDay = (day1: string | Date, day2: string | Date): boolean => {
+  if (typeof day1 === 'string' && typeof day2 === 'string' && dateOnlyPattern.test(day1) && dateOnlyPattern.test(day2)) {
+    return day1 === day2;
+  }
+  return toDateKey(day1) === toDateKey(day2);
 };
 
 export const toDateTimeLocalInputValue = (value: string): string => {
