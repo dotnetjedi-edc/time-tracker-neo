@@ -1,4 +1,10 @@
-import { expect, test, type Page } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Locator,
+  type Page,
+} from "@playwright/test";
 
 type SeedTagInput = {
   id?: string;
@@ -60,11 +66,36 @@ const dragHandle = (page: Page, taskName: string) =>
 
 const seedWorkspace = async (
   page: Page,
-  request: Parameters<typeof test.beforeEach>[0]["request"],
+  request: APIRequestContext,
   payload: SeedPayload,
 ) => {
   await request.post("/api/test/seed", { data: payload });
   await page.reload();
+};
+
+const selectDialTime = async (
+  dialog: Locator,
+  fieldLabel: RegExp,
+  hour: number,
+  minute: number,
+) => {
+  await dialog.getByRole("button", { name: fieldLabel }).click();
+  await dialog
+    .getByRole("button", {
+      name: new RegExp(
+        `choisir ${hour.toString().padStart(2, "0")} heures`,
+        "i",
+      ),
+    })
+    .click();
+  await dialog
+    .getByRole("button", {
+      name: new RegExp(
+        `choisir ${minute.toString().padStart(2, "0")} minutes`,
+        "i",
+      ),
+    })
+    .click();
 };
 
 const clickButtonByName = async (page: Page, name: RegExp) => {
@@ -113,13 +144,11 @@ const atLocalTime = (
     seconds,
   );
 
-const toDateTimeLocalValue = (value: Date) => {
+const toDateInputValue = (value: Date) => {
   const year = value.getFullYear();
   const month = `${value.getMonth() + 1}`.padStart(2, "0");
   const day = `${value.getDate()}`.padStart(2, "0");
-  const hours = `${value.getHours()}`.padStart(2, "0");
-  const minutes = `${value.getMinutes()}`.padStart(2, "0");
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
+  return `${year}-${month}-${day}`;
 };
 
 test.beforeEach(async ({ page, request }) => {
@@ -432,12 +461,15 @@ test("allows manual time entry and exposes task history", async ({
   const sessionsDialog = page.getByRole("dialog", {
     name: /temps et historique pour lecture/i,
   });
+
   await sessionsDialog
-    .getByLabel("Début de session")
-    .fill(toDateTimeLocalValue(manualSessionStart));
+    .getByLabel("Date de début")
+    .fill(toDateInputValue(manualSessionStart));
   await sessionsDialog
-    .getByLabel("Fin de session")
-    .fill(toDateTimeLocalValue(manualSessionEnd));
+    .getByLabel("Date de fin")
+    .fill(toDateInputValue(manualSessionEnd));
+  await selectDialTime(sessionsDialog, /heure de début/i, 9, 0);
+  await selectDialTime(sessionsDialog, /heure de fin/i, 10, 30);
   await sessionsDialog
     .getByRole("button", { name: /ajouter la session/i })
     .click();

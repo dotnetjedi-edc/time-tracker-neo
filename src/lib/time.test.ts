@@ -2,12 +2,17 @@ import { describe, expect, it } from "vitest";
 import {
   formatDateTime,
   formatClock,
+  formatHourMinute,
   formatHoursMinutes,
   formatWeekRange,
   fromDateTimeLocalInputValue,
+  getClockDialValueFromPoint,
   startOfWeek,
+  toDateInputValue,
   toDateTimeLocalInputValue,
   toDateKey,
+  toIsoFromDateAndTimeParts,
+  toTimeParts,
 } from "./time";
 import { summarizeWeek } from "./weekly";
 
@@ -29,6 +34,31 @@ describe("time helpers", () => {
   it("round-trips a datetime-local input value", () => {
     const value = toDateTimeLocalInputValue("2026-03-20T10:15:00.000Z");
     expect(fromDateTimeLocalInputValue(value)).toBe("2026-03-20T10:15:00.000Z");
+  });
+
+  it("extracts local date and time parts from an iso string", () => {
+    const isoValue = "2026-03-20T10:15:00.000Z";
+    const localDate = toDateInputValue(isoValue);
+    const localTime = toTimeParts(isoValue);
+
+    expect(localDate).toMatch(/^2026-03-\d{2}$/);
+    expect(localTime.minute).toBe(15);
+    expect(localTime.hour).toBeGreaterThanOrEqual(0);
+    expect(localTime.hour).toBeLessThan(24);
+  });
+
+  it("creates an iso string from separate local date and time parts", () => {
+    const isoValue = "2026-03-20T10:15:00.000Z";
+    const localDate = toDateInputValue(isoValue);
+    const localTime = toTimeParts(isoValue);
+
+    expect(
+      toIsoFromDateAndTimeParts(localDate, localTime.hour, localTime.minute),
+    ).toBe(isoValue);
+  });
+
+  it("formats an hour and minute pair for the picker display", () => {
+    expect(formatHourMinute(9, 5)).toBe("09:05");
   });
 
   it("formats a localized date time string", () => {
@@ -146,5 +176,12 @@ describe("time helpers", () => {
     const prevWeek = summarizeWeek(tasks, sessions, "2026-03-10", [], []);
     expect(prevWeek.totalSeconds).toBe(0);
     expect(prevWeek.tasks).toHaveLength(0);
+  });
+
+  it("maps dial points to hour and minute values", () => {
+    expect(getClockDialValueFromPoint(100, 100, 100, 0, 24)).toBe(0);
+    expect(getClockDialValueFromPoint(100, 100, 200, 100, 24)).toBe(6);
+    expect(getClockDialValueFromPoint(100, 100, 100, 200, 24)).toBe(12);
+    expect(getClockDialValueFromPoint(100, 100, 0, 100, 60)).toBe(45);
   });
 });

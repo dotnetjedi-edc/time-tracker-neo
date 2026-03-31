@@ -1,0 +1,34 @@
+
+[1m[46m RUN [49m[22m [36mv3.2.4 [39m[90m/mnt/d/git/time-tracker3[39m
+
+
+[31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Suites 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/test/integration/app.integration.test.tsx[2m [ src/test/integration/app.integration.test.tsx ][22m
+[31m[1mError[22m: Transform failed with 1 error:
+/mnt/d/git/time-tracker3/src/components/TaskSessionsModal.tsx:376:22: ERROR: Expected identifier but found "<"[39m
+  Plugin: [35mvite:esbuild[39m
+  File: [36m/mnt/d/git/time-tracker3/src/components/TaskSessionsModal.tsx[39m:376:22
+[33m  
+  [33mExpected identifier but found "<"[33m
+  374|                          onHourChange={(hour) =>
+  375|                            updateField(target, (current) => ({
+  376|                        <div className="relative">
+     |                        ^
+  377|                          <div className="flex flex-wrap items-center gap-3">
+  378|                            <button
+  [39m
+[90m [2m❯[22m failureErrorWithLog node_modules/esbuild/lib/main.js:[2m1467:15[22m[39m
+[90m [2m❯[22m node_modules/esbuild/lib/main.js:[2m736:50[22m[39m
+[90m [2m❯[22m responseCallbacks.<computed> node_modules/esbuild/lib/main.js:[2m603:9[22m[39m
+[90m [2m❯[22m handleIncomingPacket node_modules/esbuild/lib/main.js:[2m658:12[22m[39m
+[90m [2m❯[22m Socket.readFromStdout node_modules/esbuild/lib/main.js:[2m581:7[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [2mno tests[22m
+[2m   Start at [22m 14:23:29
+[2m   Duration [22m 20.61s[2m (transform 335ms, setup 2.43s, collect 0ms, tests 0ms, environment 10.56s, prepare 775ms)[22m
+

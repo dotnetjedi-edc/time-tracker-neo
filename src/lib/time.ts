@@ -152,3 +152,64 @@ export const toDateTimeLocalInputValue = (value: string): string => {
 
 export const fromDateTimeLocalInputValue = (value: string): string =>
   new Date(value).toISOString();
+
+const padDatePart = (value: number): string => value.toString().padStart(2, "0");
+
+export const toDateInputValue = (value: string): string => {
+  const date = new Date(value);
+  return `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())}`;
+};
+
+export const toTimeParts = (
+  value: string,
+): {
+  hour: number;
+  minute: number;
+} => {
+  const date = new Date(value);
+  return {
+    hour: date.getHours(),
+    minute: date.getMinutes(),
+  };
+};
+
+export const toIsoFromDateAndTimeParts = (
+  dateValue: string,
+  hour: number,
+  minute: number,
+): string => {
+  const match = dateOnlyPattern.exec(dateValue);
+
+  if (!match) {
+    throw new Error(`Invalid date value: ${dateValue}`);
+  }
+
+  const [, year, month, day] = match;
+  return new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    hour,
+    minute,
+    0,
+    0,
+  ).toISOString();
+};
+
+export const formatHourMinute = (hour: number, minute: number): string =>
+  `${padDatePart(hour)}:${padDatePart(minute)}`;
+
+export const getClockDialValueFromPoint = (
+  centerX: number,
+  centerY: number,
+  pointX: number,
+  pointY: number,
+  divisions: number,
+): number => {
+  const angle = Math.atan2(pointY - centerY, pointX - centerX);
+  const normalizedAngle =
+    (angle + Math.PI / 2 + Math.PI * 2) % (Math.PI * 2);
+  const rawValue = (normalizedAngle / (Math.PI * 2)) * divisions;
+
+  return Math.round(rawValue) % divisions;
+};
