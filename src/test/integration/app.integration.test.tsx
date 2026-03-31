@@ -487,9 +487,7 @@ describe("Time Tracker integration", () => {
     const banner = screen.getByRole("banner");
     expect(within(banner).getByText(/^01:00:00$/)).toBeVisible();
     expect(
-      within(banner).queryByText(
-        (content, node) => node?.textContent === "30m",
-      ),
+      within(banner).getByText((content, node) => node?.textContent === "30m"),
     ).toBeVisible();
 
     vi.useRealTimers();
