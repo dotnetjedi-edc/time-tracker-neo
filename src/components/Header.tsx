@@ -1,5 +1,7 @@
 import {
   CalendarRange,
+  ChevronLeft,
+  ChevronRight,
   LayoutGrid,
   Square,
   Tags,
@@ -20,11 +22,14 @@ interface HeaderProps {
   selectedTagIds: string[];
   tags: Tag[];
   activeTimer: ActiveTimerSummary | null;
+  weeklyTotal: string;
+  weekDateRange: string;
   onToggleView: () => void;
   onOpenTags: () => void;
   onSelectTag: (tagId: string) => void;
   onResetFilters: () => void;
   onStopActiveTimer: () => void;
+  onMoveWeek: (direction: -1 | 1) => void;
 }
 
 export function Header({
@@ -32,11 +37,14 @@ export function Header({
   selectedTagIds,
   tags,
   activeTimer,
+  weeklyTotal,
+  weekDateRange,
   onToggleView,
   onOpenTags,
   onSelectTag,
   onResetFilters,
   onStopActiveTimer,
+  onMoveWeek,
 }: HeaderProps) {
   const activeLabel = activeTimer?.taskName ?? "Aucun chrono actif";
   const activeContext =
@@ -82,7 +90,38 @@ export function Header({
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2 xl:justify-end">
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-3 rounded-[1.25rem] border border-ink/8 bg-mist/30 px-3 py-2">
+            <button
+              type="button"
+              onClick={() => onMoveWeek(-1)}
+              aria-label="Semaine précédente"
+              className="rounded-full border border-ink/10 bg-white p-2 text-ink transition hover:border-ink/30"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <div className="text-center">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink/45">
+                Semaine
+              </p>
+              <p className="text-sm font-semibold text-ink">
+                {weekDateRange}
+              </p>
+              <p className="mt-0.5 font-mono text-lg font-semibold tracking-tight text-ink">
+                {weeklyTotal}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onMoveWeek(1)}
+              aria-label="Semaine suivante"
+              className="rounded-full border border-ink/10 bg-white p-2 text-ink transition hover:border-ink/30"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+
+          <div className="flex flex-wrap gap-2 xl:justify-end">
           <button
             type="button"
             onClick={onToggleView}
@@ -111,6 +150,7 @@ export function Header({
             <TimerReset size={16} />
             Réinitialiser les filtres
           </button>
+          </div>
         </div>
       </div>
 

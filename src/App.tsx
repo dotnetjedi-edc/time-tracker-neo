@@ -21,7 +21,17 @@ import { TaskSessionsModal } from "./components/TaskSessionsModal";
 import { TagsModal } from "./components/TagsModal";
 import { WeeklyView } from "./components/WeeklyView";
 import { createTimeTrackerApiClient } from "./lib/api";
-import { differenceInSeconds, formatDateTime } from "./lib/time";
+import {
+  addDays,
+  differenceInSeconds,
+  formatDateTime,
+  formatHoursMinutes,
+  formatWeekRange,
+  startOfWeek,
+  toDateKey,
+  todayKey,
+} from "./lib/time";
+import { summarizeWeek } from "./lib/weekly";
 import { useTimeTrackerStore } from "./store/useTimeTrackerStore";
 import { useNavigationStack } from "./hooks/useNavigationStack";
 
@@ -254,6 +264,74 @@ function AuthenticatedWorkspace() {
     };
   }, [activeTask, activeTimer, activeTimerSession, now]);
 
+  const isCurrentWeek =
+    toDateKey(startOfWeek(reportAnchor)) === toDateKey(startOfWeek(todayKey()));
+
+  const activeTaskMatchesSummaryFilters = useMemo(() => {
+    if (!activeTask) {
+      return false;
+    }
+
+    const validTagIds = new Set(tags.map((tag) => tag.id));
+    if (!activeTask.tagIds.every((tagId) => validTagIds.has(tagId))) {
+      return false;
+    }
+
+    if (selectedTagIds.length === 0) {
+      return true;
+    }
+
+    return selectedTagIds.every((tagId) => activeTask.tagIds.includes(tagId));
+  }, [activeTask, selectedTagIds, tags]);
+
+  const activeTimerWeekContributionSeconds = useMemo(() => {
+    if (!isCurrentWeek || !activeTimer || !activeTaskMatchesSummaryFilters) {
+      return 0;
+    }
+
+    const weekStart = startOfWeek(reportAnchor).getTime();
+    const weekEnd = addDays(startOfWeek(reportAnchor), 7).getTime();
+    const overlapStart = Math.max(
+      new Date(activeTimer.segmentStartTime).getTime(),
+      weekStart,
+    );
+    const overlapEnd = Math.min(now, weekEnd);
+
+    if (overlapEnd <= overlapStart) {
+      return 0;
+    }
+
+    return Math.floor((overlapEnd - overlapStart) / 1000);
+  }, [
+    activeTaskMatchesSummaryFilters,
+    activeTimer,
+    isCurrentWeek,
+    now,
+    reportAnchor,
+  ]);
+
+  const weeklyTotalSeconds = useMemo(() => {
+    const summary = summarizeWeek(
+      tasks,
+      sessions,
+      reportAnchor,
+      selectedTagIds,
+      tags,
+    );
+
+    return summary.totalSeconds + activeTimerWeekContributionSeconds;
+  }, [
+    activeTimerWeekContributionSeconds,
+    reportAnchor,
+    selectedTagIds,
+    sessions,
+    tags,
+    tasks,
+  ]);
+
+  const weeklyTotal = formatHoursMinutes(weeklyTotalSeconds);
+  const weekDateRange = formatWeekRange(reportAnchor);
+
   const handleSaveTask = (draft: TaskDraft) => {
     if (editingTask) {
       void updateTask(editingTask.id, draft);
@@ -337,6 +415,8 @@ function AuthenticatedWorkspace() {
           selectedTagIds={selectedTagIds}
           tags={tags}
           activeTimer={activeTimerSummary}
+          weeklyTotal={weeklyTotal}
+          weekDateRange={weekDateRange}
           onToggleView={() =>
             setCurrentView(currentView === "grid" ? "week" : "grid")
           }
@@ -351,6 +431,7 @@ function AuthenticatedWorkspace() {
           onSelectTag={toggleSelectedTag}
           onResetFilters={resetFilters}
           onStopActiveTimer={() => void stopTimer(new Date().toISOString())}
+          onMoveWeek={moveReportWeek}
         />
 
         <main className="space-y-6">

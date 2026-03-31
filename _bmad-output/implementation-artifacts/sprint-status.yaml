@@ -1,13 +1,13 @@
 # Sprint status generated from _bmad-output/planning-artifacts/epics.md
 # generated: 2026-03-20 23:50
-# last_updated: 2026-03-21 (refreshed by SM and updated by Dev)
+# last_updated: 2026-03-30 (refreshed by SM and updated by Dev)
 # project: time-tracker3
 # project_key: TT3
 # tracking_system: file-system
 # story_location: _bmad-output/implementation-artifacts
 
 generated: 2026-03-20 23:50
-last_updated: 2026-03-21
+last_updated: 2026-03-30
 project: time-tracker3
 project_key: TT3
 tracking_system: file-system
@@ -51,3 +51,7 @@ development_status:
   epic-6: planned
   6-1-fix-mobile-drag-and-drop: backlog
   epic-6-retrospective: optional
+
+  epic-7: in-progress
+  7-1-week-navigation-and-timer-weekly-total: review
+  epic-7-retrospective: optional

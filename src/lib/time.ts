@@ -47,8 +47,24 @@ export const differenceInSeconds = (
   return Math.max(0, Math.floor(delta / 1000));
 };
 
+const dateOnlyPattern = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+const toLocalDate = (value: string | Date): Date => {
+  if (value instanceof Date) {
+    return value;
+  }
+
+  const dateOnlyMatch = dateOnlyPattern.exec(value);
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+
+  return new Date(value);
+};
+
 export const toDateKey = (value: string | Date): string => {
-  const date = typeof value === "string" ? new Date(value) : value;
+  const date = toLocalDate(value);
   const year = date.getFullYear();
   const month = `${date.getMonth() + 1}`.padStart(2, "0");
   const day = `${date.getDate()}`.padStart(2, "0");
@@ -56,7 +72,7 @@ export const toDateKey = (value: string | Date): string => {
 };
 
 export const startOfWeek = (value: string | Date): Date => {
-  const date = typeof value === "string" ? new Date(value) : new Date(value);
+  const date = toLocalDate(value);
   const normalized = new Date(
     date.getFullYear(),
     date.getMonth(),
@@ -84,6 +100,18 @@ export const shiftWeek = (anchor: string | Date, amount: number): string => {
 };
 
 export const todayKey = (): string => toDateKey(new Date());
+
+const weekRangeFormatter = new Intl.DateTimeFormat("fr-FR", {
+  day: "numeric",
+  month: "short",
+});
+
+export const formatWeekRange = (anchor: string): string => {
+  const days = weekDays(anchor);
+  const monday = days[0];
+  const sunday = days[6];
+  return `${weekRangeFormatter.format(monday)} \u2013 ${weekRangeFormatter.format(sunday)}`;
+};
 
 export const toDateTimeLocalInputValue = (value: string): string => {
   const date = new Date(value);
