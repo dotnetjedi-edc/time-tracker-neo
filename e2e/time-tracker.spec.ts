@@ -314,11 +314,6 @@ test("navigates weeks and updates the weekly total in the header", async ({
   });
 
   const banner = page.getByRole("banner");
-  const weekRange = banner.getByText(/\d{1,2} .* – \d{1,2} .*/).first();
-  const initialWeekRange = (await weekRange.textContent()) ?? "";
-  const startsOnCurrentWeek =
-    (await banner.getByText("32m", { exact: true }).count()) > 0;
-
   await expect(banner.getByText("Focus", { exact: true })).toBeVisible();
   await expect(banner.getByText(/00:02:[0-5]\d/)).toBeVisible();
   await page.getByRole("button", { name: /vue calendrier/i }).click();
@@ -326,31 +321,36 @@ test("navigates weeks and updates the weekly total in the header", async ({
     page.getByRole("heading", { name: /temps passé par tâche et par jour/i }),
   ).toBeVisible();
 
+  const weekRange = banner.getByText(/\d{1,2} .* – \d{1,2} .*/).first();
+  const initialWeekRange = (await weekRange.textContent()) ?? "";
+  const startsOnCurrentWeek =
+    (await banner.getByText("32m", { exact: true }).count()) > 0;
+
   if (startsOnCurrentWeek) {
     await expect(banner.getByText("32m", { exact: true })).toBeVisible();
 
-    await clickButtonByName(page, /^← Semaine précédente$/i);
+    await clickButtonByName(page, /^Semaine précédente$/i);
 
     await expect(banner.getByText("45m", { exact: true })).toBeVisible();
     await expect(weekRange).not.toHaveText(initialWeekRange);
     await expect(banner.getByText("Focus", { exact: true })).toBeVisible();
     await expect(banner.getByText(/00:02:[0-5]\d/)).toBeVisible();
 
-    await clickButtonByName(page, /^Semaine suivante →$/i);
+    await clickButtonByName(page, /^Semaine suivante$/i);
 
     await expect(weekRange).toHaveText(initialWeekRange);
     await expect(banner.getByText("32m", { exact: true })).toBeVisible();
   } else {
     await expect(banner.getByText("45m", { exact: true })).toBeVisible();
 
-    await clickButtonByName(page, /^Semaine suivante →$/i);
+    await clickButtonByName(page, /^Semaine suivante$/i);
 
     await expect(banner.getByText("32m", { exact: true })).toBeVisible();
     await expect(weekRange).not.toHaveText(initialWeekRange);
     await expect(banner.getByText("Focus", { exact: true })).toBeVisible();
     await expect(banner.getByText(/00:02:[0-5]\d/)).toBeVisible();
 
-    await clickButtonByName(page, /^← Semaine précédente$/i);
+    await clickButtonByName(page, /^Semaine précédente$/i);
 
     await expect(weekRange).toHaveText(initialWeekRange);
     await expect(banner.getByText("45m", { exact: true })).toBeVisible();

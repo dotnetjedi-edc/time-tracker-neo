@@ -136,16 +136,19 @@ export function TaskSessionsModal({
 
     const handleEscapeKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
         setPickerTarget(null);
       }
     };
 
     document.addEventListener("pointerdown", handlePointerDown);
-    window.addEventListener("keydown", handleEscapeKey);
+    window.addEventListener("keydown", handleEscapeKey, { capture: true });
 
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown);
-      window.removeEventListener("keydown", handleEscapeKey);
+      window.removeEventListener("keydown", handleEscapeKey, true);
     };
   }, [pickerTarget]);
 
