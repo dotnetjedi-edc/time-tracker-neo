@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { SessionDraft, Task, TaskSession } from "../types";
 import {
   formatDateTime,
-  fromDateTimeLocalInputValue,
-  toDateTimeLocalInputValue,
+  formatHourMinute,
+  toDateInputValue,
+  toIsoFromDateAndTimeParts,
+  toTimeParts,
 } from "../lib/time";
+import { TimeDialPicker } from "./TimeDialPicker";
 
 interface TaskSessionsModalProps {
   task: Task | null;
@@ -18,9 +21,69 @@ interface TaskSessionsModalProps {
   onDelete: (sessionId: string) => void | Promise<void>;
 }
 
-const emptyDraft: SessionDraft = {
-  startTime: "",
-  endTime: "",
+type PickerTarget = "start" | "end";
+type PickerMode = "hour" | "minute";
+
+interface ManualFieldDraft {
+  date: string;
+  hour: number | null;
+  minute: number | null;
+}
+
+interface ManualSessionDraft {
+  start: ManualFieldDraft;
+  end: ManualFieldDraft;
+}
+
+const createEmptyFieldDraft = (): ManualFieldDraft => ({
+  date: toDateInputValue(new Date().toISOString()),
+  hour: null,
+  minute: null,
+});
+
+const createEmptyManualDraft = (): ManualSessionDraft => ({
+  start: createEmptyFieldDraft(),
+  end: createEmptyFieldDraft(),
+});
+
+const draftFromSession = (session: TaskSession): ManualSessionDraft => {
+  const start = toTimeParts(session.startedAt);
+  const end = toTimeParts(session.endedAt ?? session.startedAt);
+
+  return {
+    start: {
+      date: toDateInputValue(session.startedAt),
+      hour: start.hour,
+      minute: start.minute,
+    },
+    end: {
+      date: toDateInputValue(session.endedAt ?? session.startedAt),
+      hour: end.hour,
+      minute: end.minute,
+    },
+  };
+};
+
+const isCompleteField = (field: ManualFieldDraft): boolean =>
+  field.date !== "" && field.hour !== null && field.minute !== null;
+
+const toSessionDraft = (draft: ManualSessionDraft): SessionDraft | null => {
+  if (!isCompleteField(draft.start) || !isCompleteField(draft.end)) {
+    return null;
+  }
+
+  return {
+    startTime: toIsoFromDateAndTimeParts(
+      draft.start.date,
+      draft.start.hour,
+      draft.start.minute,
+    ),
+    endTime: toIsoFromDateAndTimeParts(
+      draft.end.date,
+      draft.end.hour,
+      draft.end.minute,
+    ),
+  };
 };
 
 export function TaskSessionsModal({
@@ -35,8 +98,13 @@ export function TaskSessionsModal({
   onDelete,
 }: TaskSessionsModalProps) {
   const [view, setView] = useState<"manual" | "history">(initialView);
-  const [draft, setDraft] = useState<SessionDraft>(emptyDraft);
+  const [draft, setDraft] = useState<ManualSessionDraft>(
+    createEmptyManualDraft,
+  );
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null);
+  const [pickerMode, setPickerMode] = useState<PickerMode>("hour");
+  const activePickerContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -44,9 +112,45 @@ export function TaskSessionsModal({
     }
 
     setView(initialView);
-    setDraft(emptyDraft);
+    setDraft(createEmptyManualDraft());
     setEditingSessionId(null);
+    setPickerTarget(null);
+    setPickerMode("hour");
   }, [initialView, isOpen]);
+
+  useEffect(() => {
+    if (pickerTarget === null) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const container = activePickerContainerRef.current;
+      if (!container) {
+        return;
+      }
+
+      if (!container.contains(event.target as Node)) {
+        setPickerTarget(null);
+      }
+    };
+
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        setPickerTarget(null);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleEscapeKey, { capture: true });
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleEscapeKey, true);
+    };
+  }, [pickerTarget]);
 
   const sortedSessions = useMemo(
     () =>
@@ -62,39 +166,50 @@ export function TaskSessionsModal({
     return null;
   }
 
+  const sessionDraft = toSessionDraft(draft);
   const isValidDraft =
-    draft.startTime !== "" &&
-    draft.endTime !== "" &&
-    new Date(draft.endTime).getTime() > new Date(draft.startTime).getTime();
+    sessionDraft !== null &&
+    new Date(sessionDraft.endTime).getTime() >
+      new Date(sessionDraft.startTime).getTime();
+
+  const activeField = pickerTarget === null ? null : draft[pickerTarget];
+  const pickerHour = activeField?.hour ?? 9;
+  const pickerMinute = activeField?.minute ?? 0;
+
+  const updateField = (
+    target: PickerTarget,
+    updater: (current: ManualFieldDraft) => ManualFieldDraft,
+  ) => {
+    setDraft((current) => ({
+      ...current,
+      [target]: updater(current[target]),
+    }));
+  };
 
   const submitDraft = () => {
-    if (!isValidDraft) {
+    if (!isValidDraft || !sessionDraft) {
       return;
     }
 
-    const payload = {
-      startTime: fromDateTimeLocalInputValue(draft.startTime),
-      endTime: fromDateTimeLocalInputValue(draft.endTime),
-    };
-
     if (editingSessionId !== null) {
-      onUpdate(editingSessionId, payload);
+      onUpdate(editingSessionId, sessionDraft);
     } else {
-      onCreate(task.id, payload);
+      onCreate(task.id, sessionDraft);
     }
 
-    setDraft(emptyDraft);
+    setDraft(createEmptyManualDraft());
     setEditingSessionId(null);
     setView("history");
+    setPickerTarget(null);
+    setPickerMode("hour");
   };
 
   const beginEdit = (session: TaskSession) => {
     setEditingSessionId(session.id);
     setView("manual");
-    setDraft({
-      startTime: toDateTimeLocalInputValue(session.startedAt),
-      endTime: toDateTimeLocalInputValue(session.endedAt ?? session.startedAt),
-    });
+    setDraft(draftFromSession(session));
+    setPickerTarget(null);
+    setPickerMode("hour");
   };
 
   return (
@@ -120,7 +235,9 @@ export function TaskSessionsModal({
             <div className="flex flex-wrap gap-2 sm:gap-3">
               <button
                 type="button"
-                onClick={() => setView("manual")}
+                onClick={() => {
+                  setView("manual");
+                }}
                 className={[
                   "rounded-full px-3 py-1.5 text-xs font-semibold transition sm:px-4 sm:py-2 sm:text-sm",
                   view === "manual"
@@ -132,7 +249,10 @@ export function TaskSessionsModal({
               </button>
               <button
                 type="button"
-                onClick={() => setView("history")}
+                onClick={() => {
+                  setView("history");
+                  setPickerTarget(null);
+                }}
                 className={[
                   "rounded-full px-3 py-1.5 text-xs font-semibold transition sm:px-4 sm:py-2 sm:text-sm",
                   view === "history"
@@ -169,46 +289,160 @@ export function TaskSessionsModal({
                     : "Modifier la session"}
                 </h3>
                 <p className="mt-1 text-sm text-ink/60">
-                  Les sessions qui traversent minuit restent affectées au jour
-                  de début.
+                  Choisissez la date puis l’heure rapidement avec le cadran 24h.
                 </p>
               </div>
 
-              <label className="block space-y-2">
-                <span className="text-sm font-semibold text-ink">Début</span>
-                <input
-                  aria-label="Début de session"
-                  type="datetime-local"
-                  value={draft.startTime}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      startTime: event.target.value,
-                    }))
-                  }
-                  className="w-full rounded-2xl border border-ink/10 bg-white px-4 py-3 text-base text-ink outline-none transition focus:border-coral"
-                />
-              </label>
+              {(
+                [
+                  ["start", "Début", "Date de début", "Heure de début"],
+                  ["end", "Fin", "Date de fin", "Heure de fin"],
+                ] as const
+              ).map(([target, title, dateLabel, timeLabel]) => {
+                const field = draft[target];
+                const isActive = pickerTarget === target;
 
-              <label className="block space-y-2">
-                <span className="text-sm font-semibold text-ink">Fin</span>
-                <input
-                  aria-label="Fin de session"
-                  type="datetime-local"
-                  value={draft.endTime}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      endTime: event.target.value,
-                    }))
-                  }
-                  className="w-full rounded-2xl border border-ink/10 bg-white px-4 py-3 text-base text-ink outline-none transition focus:border-coral"
-                />
-              </label>
+                return (
+                  <div
+                    key={target}
+                    className={[
+                      "space-y-3 rounded-[1.5rem] border px-4 py-4 transition",
+                      isActive
+                        ? "border-coral bg-coral/5"
+                        : "border-ink/10 bg-white/75",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-semibold text-ink">
+                        {title}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPickerTarget(target);
+                          setPickerMode("hour");
+                        }}
+                        className="rounded-full border border-ink/10 px-3 py-1.5 text-xs font-semibold text-ink/65 transition hover:border-ink/30 hover:text-ink"
+                      >
+                        {isActive ? "Cadran actif" : "Ouvrir le cadran"}
+                      </button>
+                    </div>
 
-              {!isValidDraft &&
-              draft.startTime !== "" &&
-              draft.endTime !== "" ? (
+                    <label className="block space-y-2">
+                      <span className="text-sm font-medium text-ink/70">
+                        {dateLabel}
+                      </span>
+                      <input
+                        aria-label={dateLabel}
+                        type="date"
+                        value={field.date}
+                        onChange={(event) =>
+                          updateField(target, (current) => ({
+                            ...current,
+                            date: event.target.value,
+                          }))
+                        }
+                        onFocus={() => {
+                          setPickerTarget(null);
+                        }}
+                        className="w-full rounded-2xl border border-ink/10 bg-white px-4 py-3 text-base text-ink outline-none transition focus:border-coral"
+                      />
+                    </label>
+
+                    <div
+                      ref={isActive ? activePickerContainerRef : null}
+                      className="relative"
+                    >
+                      <div className="flex flex-wrap items-center gap-3">
+                        <button
+                          type="button"
+                          aria-label={timeLabel}
+                          onClick={() => {
+                            setPickerTarget(target);
+                            setPickerMode("hour");
+                          }}
+                          className="min-w-[8rem] flex-1 rounded-2xl border border-ink/10 bg-white px-4 py-3 text-left font-mono text-2xl font-semibold text-ink transition hover:border-ink/30"
+                        >
+                          {field.hour === null || field.minute === null
+                            ? "--:--"
+                            : formatHourMinute(field.hour, field.minute)}
+                        </button>
+                        <span className="text-sm font-semibold uppercase tracking-[0.14em] text-ink/35">
+                          24h
+                        </span>
+                        <div className="ml-auto flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPickerTarget(target);
+                              setPickerMode("hour");
+                            }}
+                            className={[
+                              "rounded-full px-3 py-1.5 text-xs font-semibold transition",
+                              isActive && pickerMode === "hour"
+                                ? "bg-ink text-white"
+                                : "border border-ink/10 text-ink/65 hover:border-ink/30 hover:text-ink",
+                            ].join(" ")}
+                          >
+                            Heure
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPickerTarget(target);
+                              setPickerMode("minute");
+                            }}
+                            className={[
+                              "rounded-full px-3 py-1.5 text-xs font-semibold transition",
+                              isActive && pickerMode === "minute"
+                                ? "bg-ink text-white"
+                                : "border border-ink/10 text-ink/65 hover:border-ink/30 hover:text-ink",
+                            ].join(" ")}
+                          >
+                            Minute
+                          </button>
+                        </div>
+                      </div>
+
+                      {isActive ? (
+                        <div className="absolute left-0 right-0 top-full z-20 mt-3 lg:left-[calc(100%+0.75rem)] lg:right-auto lg:top-1/2 lg:mt-0 lg:w-[19rem] lg:-translate-y-1/2">
+                          <TimeDialPicker
+                            label={
+                              target === "start"
+                                ? "Sélecteur de temps du début"
+                                : "Sélecteur de temps de fin"
+                            }
+                            hour={pickerHour}
+                            minute={pickerMinute}
+                            mode={pickerMode}
+                            compact
+                            onModeChange={setPickerMode}
+                            onHourChange={(hour) =>
+                              updateField(target, (current) => ({
+                                ...current,
+                                hour,
+                                minute: current.minute ?? 0,
+                              }))
+                            }
+                            onMinuteChange={(minute) =>
+                              updateField(target, (current) => ({
+                                ...current,
+                                hour: current.hour ?? 9,
+                                minute,
+                              }))
+                            }
+                            onConfirm={() => {
+                              setPickerTarget(null);
+                            }}
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {!isValidDraft && sessionDraft !== null ? (
                 <p className="text-sm font-medium text-red-600">
                   La fin doit être strictement après le début.
                 </p>
@@ -231,7 +465,9 @@ export function TaskSessionsModal({
                     type="button"
                     onClick={() => {
                       setEditingSessionId(null);
-                      setDraft(emptyDraft);
+                      setDraft(createEmptyManualDraft());
+                      setPickerTarget(null);
+                      setPickerMode("hour");
                     }}
                     className="rounded-full border border-ink/10 px-5 py-3 text-sm font-semibold text-ink/60 transition hover:border-ink/30 hover:text-ink"
                   >

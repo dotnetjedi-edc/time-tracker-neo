@@ -756,6 +756,177 @@ describe("Time Tracker integration", () => {
     ).toBeInTheDocument();
   }, 10000);
 
+  it("creates and edits a manual session through the dial picker", async () => {
+    const user = userEvent.setup();
+
+    useTimeTrackerStore.setState(
+      migratePersistedState({
+        tasks: [
+          {
+            id: "1",
+            name: "Lecture",
+            comment: "Lecture approfondie",
+            totalTimeSeconds: 0,
+            position: 0,
+            tagIds: [],
+            createdAt: "2026-03-20T09:00:00.000Z",
+            updatedAt: "2026-03-20T09:00:00.000Z",
+          },
+        ],
+        tags: [],
+        timeEntries: [],
+        activeTimer: null,
+        selectedTagIds: [],
+        currentView: "grid",
+        reportAnchor: "2026-03-20",
+      }),
+    );
+    syncMockWorkspaceFromStore();
+
+    await renderApp();
+
+    const taskCard = screen.getByTestId("task-card-1");
+    await user.click(
+      within(taskCard).getByRole("button", { name: /temps manuel/i }),
+    );
+
+    const sessionsDialog = screen.getByRole("dialog", {
+      name: /temps et historique pour lecture/i,
+    });
+
+    expect(
+      within(sessionsDialog).queryByLabelText(/sélecteur de temps du début/i),
+    ).not.toBeInTheDocument();
+    expect(
+      within(sessionsDialog).queryByLabelText(/sélecteur de temps de fin/i),
+    ).not.toBeInTheDocument();
+
+    await user.clear(within(sessionsDialog).getByLabelText(/date de début/i));
+    await user.type(
+      within(sessionsDialog).getByLabelText(/date de début/i),
+      "2026-03-18",
+    );
+    await user.clear(within(sessionsDialog).getByLabelText(/date de fin/i));
+    await user.type(
+      within(sessionsDialog).getByLabelText(/date de fin/i),
+      "2026-03-18",
+    );
+
+    await user.click(
+      within(sessionsDialog).getByRole("button", { name: /heure de début/i }),
+    );
+    expect(
+      within(sessionsDialog).getByLabelText(/sélecteur de temps du début/i),
+    ).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(
+      within(sessionsDialog).queryByLabelText(/sélecteur de temps du début/i),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      within(sessionsDialog).getByRole("button", { name: /heure de début/i }),
+    );
+    expect(
+      within(sessionsDialog).getByLabelText(/sélecteur de temps du début/i),
+    ).toBeInTheDocument();
+    await user.click(within(sessionsDialog).getByText(/ajouter du temps/i));
+    expect(
+      within(sessionsDialog).queryByLabelText(/sélecteur de temps du début/i),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      within(sessionsDialog).getByRole("button", { name: /heure de début/i }),
+    );
+    expect(
+      within(sessionsDialog).getByLabelText(/sélecteur de temps du début/i),
+    ).toBeInTheDocument();
+    await user.click(
+      within(sessionsDialog).getByRole("button", {
+        name: /choisir 09 heures/i,
+      }),
+    );
+    await user.click(
+      within(sessionsDialog).getByRole("button", {
+        name: /choisir 00 minutes/i,
+      }),
+    );
+    await user.click(
+      within(sessionsDialog).getByRole("button", { name: /^confirmer$/i }),
+    );
+    expect(
+      within(sessionsDialog).queryByLabelText(/sélecteur de temps du début/i),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      within(sessionsDialog).getByRole("button", { name: /heure de fin/i }),
+    );
+    expect(
+      within(sessionsDialog).queryByLabelText(/sélecteur de temps du début/i),
+    ).not.toBeInTheDocument();
+    expect(
+      within(sessionsDialog).getByLabelText(
+        /sélecteur de temps du fin|sélecteur de temps de fin/i,
+      ),
+    ).toBeInTheDocument();
+    await user.click(
+      within(sessionsDialog).getByRole("button", {
+        name: /choisir 10 heures/i,
+      }),
+    );
+    await user.click(
+      within(sessionsDialog).getByRole("button", {
+        name: /choisir 30 minutes/i,
+      }),
+    );
+    await user.click(
+      within(sessionsDialog).getByRole("button", { name: /^confirmer$/i }),
+    );
+    expect(
+      within(sessionsDialog).queryByLabelText(/sélecteur de temps de fin/i),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      within(sessionsDialog).getByRole("button", {
+        name: /ajouter la session/i,
+      }),
+    );
+
+    expect(
+      await within(sessionsDialog).findByText(/1 session enregistrée/i),
+    ).toBeInTheDocument();
+    expect(within(taskCard).getAllByText("01:30:00").length).toBeGreaterThan(0);
+
+    await user.click(
+      within(sessionsDialog).getByRole("button", { name: /modifier/i }),
+    );
+    await user.click(
+      within(sessionsDialog).getByRole("button", { name: /heure de fin/i }),
+    );
+    await user.click(
+      within(sessionsDialog).getByRole("button", {
+        name: /choisir 11 heures/i,
+      }),
+    );
+    await user.click(
+      within(sessionsDialog).getByRole("button", {
+        name: /choisir 00 minutes/i,
+      }),
+    );
+    await user.click(
+      within(sessionsDialog).getByRole("button", { name: /^confirmer$/i }),
+    );
+    await user.click(
+      within(sessionsDialog).getByRole("button", {
+        name: /enregistrer la session/i,
+      }),
+    );
+
+    expect(
+      await within(sessionsDialog).findByText(/session modifiée manuellement/i),
+    ).toBeInTheDocument();
+    expect(within(taskCard).getAllByText("02:00:00").length).toBeGreaterThan(0);
+  }, 10000);
+
   it("starts, switches, and stops timers from task-card toggle button clicks", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-03-20T10:00:00.000Z"));
